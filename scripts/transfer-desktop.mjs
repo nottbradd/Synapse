@@ -8,8 +8,12 @@ const qa = JSON.parse(await readFile(".local/update-qa.json", "utf8"));
 const browser = await chromium.connectOverCDP("http://127.0.0.1:9222");
 const context = browser.contexts()[0],
   page = context.pages()[0];
+await page.waitForFunction(() => !!window.__TAURI_INTERNALS__?.invoke);
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
+page.on("console", (message) => {
+  if (message.type() === "error") errors.push(message.text());
+});
 const invoke = (command, args = {}) =>
   page.evaluate(
     ({ command, args }) => window.__TAURI_INTERNALS__.invoke(command, args),

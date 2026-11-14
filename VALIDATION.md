@@ -19,11 +19,11 @@ The Rust suite retains the original seven tests and adds eleven organization/tra
 
 Transfer tests cover empty and populated package round trips, attachments, aliases and heading fragments, internal remapping, external references, canonical card identities, both history opt-ins, name conflicts, cancellation, missing/escaped attachment paths, malicious archives, case and file/directory collisions, decompression limits, and journal recovery with external-edit preservation. Existing containment tests include Windows junction escapes. The 500-note/500-edge/500-card indexing fixture still passes; no new performance benchmark is claimed. Two frontend label-layout tests verify measured bounds, collision avoidance, truncation, priority and distant-zoom culling; five WikiLink tests remain.
 
-The build reports a bundle-size advisory: about 1.47 MB JavaScript before compression, 479 KB compressed. Assets and KaTeX fonts are embedded. The executable is 13,665,280 bytes and the NSIS installer is 4,261,874 bytes (4.06 MiB). The installer is unsigned. Installer generation was tested; the installation wizard was not run.
+The build reports a bundle-size advisory: about 1.47 MB JavaScript before compression, 479 KB compressed. Assets and KaTeX fonts are embedded. The executable is 13,665,792 bytes and the NSIS installer is 4,262,545 bytes (4.07 MiB). The installer is unsigned. Installer generation was tested; the installation wizard was not run.
 
 ## Actual desktop integration
 
-The harnesses attach through CDP to the real Tauri WebView2 application. Rust commands, file watching and filesystem persistence are real. Tests report no JavaScript page errors.
+The harnesses attach through CDP to the real Tauri WebView2 application. Rust commands, file watching and filesystem persistence are real. They collect both uncaught page errors and console errors. A final development-log review found a synchronous zoom callback updating React state during the Canvas wrapper's resize render; deferring and coalescing that update removed the warning. The subsequent development hierarchy/transfer runs and final packaged hierarchy/release runs reported neither page nor console errors.
 
 `scripts/update-desktop.mjs` passed on the final packaged executable. It creates a fresh 97-note fixture across VCE Revision, University and Research Neurons, including duplicate Physics subjects and a dense 90-note subject. It verifies creation, location/graph/review scoping, custom subjects, KaTeX, unsaved-edit protection, an external disk conflict, saving, and independent progress for identical cards. It captures editor-open/closed and 900×600, 1440×900 and 1600×1000 layouts.
 
@@ -63,6 +63,6 @@ See [MIGRATION.md](MIGRATION.md) for schemas, backup behavior, package limits an
 - The scheduler remains the documented deterministic SM-2-inspired algorithm.
 - GitHub Actions runs unit/static checks and installer generation. Local results do not imply that a hosted CI run has completed.
 
-Final executable SHA-256: `e9feb3f2d72038914cd9f95823963035a46ff891643dd5401aff94a3f63bf857`.
+Final executable SHA-256: `46c0e3f939a1fca9521adc10093dc1e796921e7ebfcffc42c60b8867d2cef979`.
 
-Final NSIS installer SHA-256: `39558707f3cf1ef451c74967bb620ff3a06eb65dfda6a4cb1d21fdce72453e1f`.
+Final NSIS installer SHA-256: `f9192fad648ecb4cccc54d900558b8e1e0247bdbb2a0c0685c85fc29bd809bae`.

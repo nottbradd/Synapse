@@ -600,8 +600,12 @@ pub fn inspect(root: &Path, input: &Path, cancel: &AtomicBool) -> Result<Plan> {
     Ok(plan)
 }
 fn archive(root: &Path, path: &Path, cancel: &AtomicBool) -> Result<Plan> {
-    let mut zip =
-        zip::ZipArchive::new(fs::File::open(path)?).map_err(|e| Error::new("archive", e))?;
+    let mut zip = zip::ZipArchive::new(fs::File::open(path)?).map_err(|_| {
+        Error::new(
+            "archive",
+            "This file is not a readable subject package. Choose a .synapse-subject file exported by Synapse.",
+        )
+    })?;
     if zip.len() > MAX_ENTRIES + 1 {
         return Err(Error::new("limit", "Too many archive entries"));
     }

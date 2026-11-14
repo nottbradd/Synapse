@@ -27,7 +27,9 @@ export default function Graph({
 }) {
   const container = useRef<HTMLDivElement>(null),
     graph = useRef<ForceGraphMethods<GraphNode>>(undefined),
-    positions = useRef(new Map<string, GraphNode>());
+    positions = useRef(new Map<string, GraphNode>()),
+    zoomFrame = useRef<number | null>(null),
+    nextZoom = useRef(1);
   const [size, setSize] = useState({ width: 1200, height: 800 }),
     [hover, setHover] = useState<string | null>(null),
     [zoom, setZoom] = useState(1);
@@ -38,7 +40,11 @@ export default function Graph({
       setSize({ width: e.contentRect.width, height: e.contentRect.height }),
     );
     observer.observe(container.current!);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (zoomFrame.current !== null) cancelAnimationFrame(zoomFrame.current);
+      zoomFrame.current = null;
+    };
   }, []);
   const scope = snapshot.organization.location;
   const data = useMemo(() => {
@@ -168,7 +174,16 @@ export default function Graph({
         nodeLabel=""
         onNodeClick={(n) => onOpen(n.id)}
         onNodeHover={(n) => setHover(n?.id ?? null)}
-        onZoom={({ k }) => setZoom(k)}
+        onZoom={({ k }) => {
+          // The Canvas wrapper can report zoom synchronously while applying
+          // resize props. Coalesce updates outside its React render phase.
+          nextZoom.current = k;
+          if (zoomFrame.current === null)
+            zoomFrame.current = requestAnimationFrame(() => {
+              zoomFrame.current = null;
+              setZoom(nextZoom.current);
+            });
+        }}
         onNodeDragEnd={(n) => {
           n.fx = n.x;
           n.fy = n.y;
