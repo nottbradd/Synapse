@@ -1,0 +1,30 @@
+[package]
+name = "synapse"
+version = "0.1.0"
+edition = "2021"
+description = "Local Markdown knowledge and revision workspace"
+
+[lib]
+name = "synapse_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml_ng = "0.10"
+walkdir = "2"
+notify = "8"
+regex = "1"
+pulldown-cmark = "0.13"
+sha2 = "0.10"
+tempfile = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
