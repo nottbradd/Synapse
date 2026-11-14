@@ -1,194 +1,433 @@
+import { useEffect, useState } from "react";
 import {
-  GitBranch,
+  BookOpen,
   ChevronDown,
-  PanelLeftOpen,
-  PanelLeftClose,
+  ChevronRight,
   FolderOpen,
-  Search,
-  X,
-  FilePlus2,
   Layers,
+  MoreHorizontal,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
   RefreshCw,
+  Search,
+  Upload,
+  X,
 } from "lucide-react";
 import type { Workspace } from "../hooks/useWorkspace";
-import { subjects } from "../types";
-type Props = Pick<
-  Workspace,
-  | "vault"
-  | "doc"
-  | "busy"
-  | "query"
-  | "setQuery"
-  | "collapsed"
-  | "setCollapsed"
-  | "guard"
-  | "chooseVault"
-  | "openNote"
-  | "setCreate"
-  | "refresh"
-  | "setReview"
-  | "visible"
-  | "due"
->;
+import NoteTree from "./NoteTree";
+export type Action = {
+  kind:
+    "new-neuron" | "new-subject" | "rename" | "assign" | "import" | "export";
+  id?: string;
+};
 export default function Sidebar({
-  vault,
-  doc,
-  busy,
-  query,
-  setQuery,
-  collapsed,
-  setCollapsed,
-  guard,
-  chooseVault,
-  openNote,
-  setCreate,
-  refresh,
-  setReview,
-  visible,
-  due,
-}: Props) {
+  w,
+  onAction,
+  onNewNote,
+}: {
+  w: Workspace;
+  onAction: (a: Action) => void;
+  onNewNote: (subject?: string) => void;
+}) {
+  const {
+    vault,
+    collapsed,
+    setCollapsed,
+    busy,
+    query,
+    setQuery,
+    visible,
+    doc,
+    openNote,
+    selectLocation,
+  } = w;
+  const [closed, setClosed] = useState<Set<string>>(() => new Set());
+  const [menu, setMenu] = useState<{
+    id: string;
+    neuron: boolean;
+    top: number;
+  } | null>(null);
+  useEffect(() => {
+    if (!menu) return;
+    document.querySelector<HTMLButtonElement>(".context-menu button")?.focus();
+    const close = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMenu(null);
+        document
+          .querySelector<HTMLButtonElement>(`[data-menu-id="${menu.id}"]`)
+          ?.focus();
+      }
+    };
+    const arrows = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      e.preventDefault();
+      const buttons = Array.from(
+        document.querySelectorAll<HTMLButtonElement>(".context-menu button"),
+      );
+      const index = buttons.indexOf(
+        document.activeElement as HTMLButtonElement,
+      );
+      buttons[
+        (index + (e.key === "ArrowDown" ? 1 : -1) + buttons.length) %
+          buttons.length
+      ]?.focus();
+    };
+    window.addEventListener("keydown", arrows);
+    window.addEventListener("keydown", close);
+    return () => {
+      window.removeEventListener("keydown", close);
+      window.removeEventListener("keydown", arrows);
+    };
+  }, [menu]);
   if (!vault) return null;
+  const org = vault.organization,
+    location = org.location;
+  const toggle = (id: string) =>
+    setClosed((old) => {
+      const next = new Set(old);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const action = (a: Action) => {
+    if (menu)
+      document
+        .querySelector<HTMLButtonElement>(`[data-menu-id="${menu.id}"]`)
+        ?.focus();
+    setMenu(null);
+    onAction(a);
+  };
+  const disclosure = (id: string, name: string) => (
+    <button
+      className="disclosure"
+      aria-label={`${closed.has(id) ? "Expand" : "Collapse"} ${name}`}
+      aria-expanded={!closed.has(id)}
+      onClick={() => toggle(id)}
+    >
+      {closed.has(id) ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+    </button>
+  );
+  const more = (id: string, neuron: boolean) => (
+    <button
+      data-menu-id={id}
+      className="row-more"
+      title="More actions"
+      aria-label={`Actions for ${neuron ? org.neurons.find((n) => n.id === id)?.name : org.subjects.find((s) => s.id === id)?.name}`}
+      aria-expanded={menu?.id === id}
+      onClick={(e) =>
+        setMenu(
+          menu?.id === id
+            ? null
+            : {
+                id,
+                neuron,
+                top: Math.min(
+                  e.currentTarget.getBoundingClientRect().bottom,
+                  window.innerHeight - 228,
+                ),
+              },
+        )
+      }
+    >
+      <MoreHorizontal size={16} />
+    </button>
+  );
   return (
-    <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
-      <div className="sidebar-top">
-        <button
-          className="vault-switch"
-          title="Open another vault"
-          onClick={() => void chooseVault()}
-        >
-          <GitBranch size={20} />
-          {!collapsed && (
-            <>
-              <strong>Synapse</strong>
-              <ChevronDown size={13} />
-            </>
-          )}
-        </button>
-        <button
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          onClick={() => setCollapsed(!collapsed)}
-        >
-          {collapsed ? (
-            <PanelLeftOpen size={17} />
-          ) : (
-            <PanelLeftClose size={17} />
-          )}
-        </button>
-      </div>
-      {!collapsed && (
-        <>
-          <div className="vault-label">
-            <FolderOpen size={13} />
-            <span title={vault.root}>{vault.name}</span>
-            <span className="local-dot" title="Local vault" />
-          </div>
-          <label className="search-box inset">
-            <Search size={15} />
-            <input
-              placeholder="Find a note…"
-              aria-label="Search notes"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            {query && (
-              <button
-                title="Clear search"
-                aria-label="Clear search"
-                onClick={() => setQuery("")}
-              >
-                <X size={13} />
-              </button>
-            )}
-          </label>
-          <div className="notes-heading">
-            <span className="eyebrow">
-              NOTES <span>{visible.length}</span>
-            </span>
-            <button
-              aria-label="Create note"
-              title="Create note"
-              disabled={busy}
-              onClick={() => guard("Create another note?", () => setCreate(""))}
-            >
-              <FilePlus2 size={16} />
-            </button>
-          </div>
-          <nav className="note-list" aria-label="Notes">
-            {visible.map((n) => (
-              <button
-                key={n.id}
-                className={`note-item ${doc?.id === n.id ? "selected" : ""}`}
-                title={n.id}
-                onClick={() => openNote(n.id)}
-              >
-                <span
-                  className="subject-dot"
-                  style={{
-                    background: subjects.find((s) => s.id === n.subject)!.color,
-                  }}
-                />
-                <span>
-                  <strong>{n.title}</strong>
-                  <small>{n.id}</small>
-                </span>
-              </button>
-            ))}
-            {!visible.length && (
-              <p className="list-empty">
-                {query ? "No matching notes." : "Your next idea starts here."}
-              </p>
-            )}
-          </nav>
+    <>
+      <aside
+        className={`sidebar glass ${collapsed ? "collapsed" : ""}`}
+        aria-label="Vault navigation"
+      >
+        <header className="sidebar-head">
+          <span className="brand">
+            <Layers size={19} />
+            {!collapsed && "Synapse"}
+          </span>
           <button
-            className="new-note"
-            onClick={() => guard("Create another note?", () => setCreate(""))}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            onClick={() => setCollapsed(!collapsed)}
           >
-            <FilePlus2 size={16} />
-            New note
+            {collapsed ? (
+              <PanelLeftOpen size={17} />
+            ) : (
+              <PanelLeftClose size={17} />
+            )}
           </button>
-          <div className="revision-entry">
-            <button onClick={() => setReview(true)}>
-              <Layers size={18} />
-              <span>Revision</span>
-              <span className="count">{due}</span>
-            </button>
-            <small>A little recall, every day.</small>
-          </div>
-          <div className="sidebar-footer">
-            <span>
-              <span className="local-dot" />
-              Local workspace
-            </span>
+        </header>
+        {collapsed ? (
+          <div className="rail">
             <button
-              title="Refresh vault"
-              aria-label="Refresh vault"
-              disabled={busy}
-              onClick={() => void refresh()}
+              title="Search notes"
+              aria-label="Search notes"
+              onClick={() => {
+                setCollapsed(false);
+                setTimeout(
+                  () => document.getElementById("note-search")?.focus(),
+                  0,
+                );
+              }}
             >
-              <RefreshCw size={14} className={busy ? "spin" : ""} />
+              <Search size={18} />
             </button>
+            <button
+              title="New note"
+              aria-label="New note"
+              disabled={busy}
+              onClick={() => onNewNote()}
+            >
+              <Plus size={19} />
+            </button>
+            <button
+              title="Review"
+              aria-label="Review"
+              onClick={() => w.guard("Start review?", () => w.setReview(true))}
+            >
+              <BookOpen size={19} />
+            </button>
+            <button
+              title="Open vault"
+              aria-label="Open vault"
+              disabled={busy}
+              onClick={() => void w.chooseVault()}
+            >
+              <FolderOpen size={19} />
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="vault-heading">
+              <strong title={vault.root}>{vault.name}</strong>
+              <button
+                title="Open vault"
+                aria-label="Open vault"
+                disabled={busy}
+                onClick={() => void w.chooseVault()}
+              >
+                <FolderOpen size={17} />
+              </button>
+            </div>
+            <label className="search">
+              <Search size={16} />
+              <input
+                id="note-search"
+                aria-label="Search notes"
+                placeholder="Search notes"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              {query && (
+                <button aria-label="Clear search" onClick={() => setQuery("")}>
+                  <X size={14} />
+                </button>
+              )}
+            </label>
+            <button
+              className="new-note"
+              disabled={busy}
+              onClick={() => onNewNote()}
+            >
+              <Plus size={17} />
+              New note
+            </button>
+            <nav className="hierarchy" aria-label="Neurons and subjects">
+              <button
+                className={`all-row ${!location.neuron_id ? "selected" : ""}`}
+                aria-current={!location.neuron_id ? "page" : undefined}
+                onClick={() =>
+                  selectLocation({ neuron_id: null, subject_id: null })
+                }
+              >
+                <Layers size={16} />
+                All Neurons
+              </button>
+              {org.neurons.map((neuron) => (
+                <div className="neuron-group" key={neuron.id}>
+                  <div
+                    className={`tree-row neuron-row ${location.neuron_id === neuron.id && !location.subject_id ? "selected" : ""}`}
+                  >
+                    {disclosure(neuron.id, neuron.name)}
+                    <button
+                      className="row-name"
+                      title={neuron.name}
+                      aria-current={
+                        location.neuron_id === neuron.id && !location.subject_id
+                          ? "page"
+                          : undefined
+                      }
+                      onClick={() =>
+                        selectLocation({
+                          neuron_id: neuron.id,
+                          subject_id: null,
+                        })
+                      }
+                    >
+                      {neuron.name}
+                    </button>
+                    {more(neuron.id, true)}
+                  </div>
+                  {(!closed.has(neuron.id) || query) &&
+                    org.subjects
+                      .filter((s) => s.neuron_id === neuron.id)
+                      .map((subject) => {
+                        const notes = visible.filter(
+                          (n) => n.subject_id === subject.id,
+                        );
+                        return (
+                          <div key={subject.id} className="subject-group">
+                            <div
+                              className={`tree-row subject-row ${location.subject_id === subject.id ? "selected" : ""}`}
+                            >
+                              {disclosure(subject.id, subject.name)}
+                              <span
+                                className="subject-dot"
+                                style={{ background: subject.color }}
+                              />
+                              <button
+                                className="row-name"
+                                title={subject.name}
+                                aria-current={
+                                  location.subject_id === subject.id
+                                    ? "page"
+                                    : undefined
+                                }
+                                onClick={() =>
+                                  selectLocation({
+                                    neuron_id: neuron.id,
+                                    subject_id: subject.id,
+                                  })
+                                }
+                              >
+                                {subject.name}
+                              </button>
+                              {more(subject.id, false)}
+                            </div>
+                            {(!closed.has(subject.id) || query) && (
+                              <div className="note-rows">
+                                <NoteTree
+                                  notes={notes}
+                                  subject={subject}
+                                  selected={doc?.id}
+                                  closed={closed}
+                                  query={query}
+                                  toggle={toggle}
+                                  open={openNote}
+                                />
+                                {!notes.length && (
+                                  <span className="tree-empty">
+                                    {query ? "No matches" : "No notes"}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                </div>
+              ))}
+            </nav>
+            <div className="sidebar-actions">
+              <button
+                disabled={busy}
+                onClick={() => action({ kind: "new-neuron" })}
+              >
+                <Plus size={16} />
+                New Neuron
+              </button>
+              <button
+                disabled={busy}
+                onClick={() =>
+                  action({
+                    kind: "new-subject",
+                    id: location.neuron_id ?? org.neurons[0]?.id,
+                  })
+                }
+              >
+                <Plus size={16} />
+                New subject
+              </button>
+              <button
+                disabled={busy}
+                onClick={() => action({ kind: "import" })}
+              >
+                <Upload size={16} />
+                Import subject
+              </button>
+            </div>
+            <footer className="sidebar-footer">
+              <button
+                className="review-entry"
+                disabled={busy}
+                onClick={() =>
+                  w.guard("Start review?", () => w.setReview(true))
+                }
+              >
+                <BookOpen size={17} />
+                Review <span>{w.due}</span>
+              </button>
+              <button
+                title="Refresh vault"
+                aria-label="Refresh vault"
+                disabled={busy}
+                onClick={() => void w.refresh()}
+              >
+                <RefreshCw size={16} />
+              </button>
+            </footer>
+          </>
+        )}
+      </aside>
+      {menu && (
+        <>
+          <div className="menu-dismiss" onClick={() => setMenu(null)} />
+          <div
+            className="context-menu glass"
+            role="menu"
+            aria-label="Organization actions"
+            style={{ top: menu.top, left: collapsed ? 80 : 144 }}
+          >
+            <button
+              role="menuitem"
+              onClick={() => action({ kind: "rename", id: menu.id })}
+            >
+              Rename
+            </button>
+            {menu.neuron ? (
+              <button
+                role="menuitem"
+                onClick={() => action({ kind: "new-subject", id: menu.id })}
+              >
+                New subject
+              </button>
+            ) : (
+              <>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setMenu(null);
+                    onNewNote(menu.id);
+                  }}
+                >
+                  New note
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => action({ kind: "assign", id: menu.id })}
+                >
+                  Assign to Neuron
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => action({ kind: "export", id: menu.id })}
+                >
+                  Export subject
+                </button>
+              </>
+            )}
           </div>
         </>
       )}
-      {collapsed && (
-        <div className="collapsed-actions">
-          <button
-            title="New note"
-            aria-label="New note"
-            onClick={() => guard("Create another note?", () => setCreate(""))}
-          >
-            <FilePlus2 size={19} />
-          </button>
-          <button
-            title="Revision"
-            aria-label="Revision"
-            onClick={() => setReview(true)}
-          >
-            <Layers size={19} />
-          </button>
-        </div>
-      )}
-    </aside>
+    </>
   );
 }

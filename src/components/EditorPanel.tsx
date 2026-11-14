@@ -10,7 +10,6 @@ import {
 import Editor from "./Editor";
 import Markdown from "./Markdown";
 import type { Workspace } from "../hooks/useWorkspace";
-import { subjects } from "../types";
 type Props = Pick<
   Workspace,
   | "vault"
@@ -62,7 +61,11 @@ export default function EditorPanel({
       <header className="editor-header">
         <div>
           <FileText size={15} />
-          <span title={doc.id}>{doc.id}</span>
+          <span title={doc.id}>
+            {vault.organization.subjects.find(
+              (s) => s.id === selected?.subject_id,
+            )?.name ?? "Note"}
+          </span>
         </div>
         <button
           title="Close note"
@@ -79,15 +82,7 @@ export default function EditorPanel({
         </button>
       </header>
       <div className="note-title">
-        <span
-          className="eyebrow"
-          style={{
-            color: subjects.find((s) => s.id === selected?.subject)?.color,
-          }}
-        >
-          {subjects.find((s) => s.id === selected?.subject)?.name ?? "NOTE"}
-        </span>
-        <h2>{selected?.title ?? doc.id}</h2>
+        <h2 title={selected?.title}>{selected?.title ?? doc.id}</h2>
       </div>
       <div className="editor-toolbar">
         <div className="segmented inset">
@@ -198,7 +193,11 @@ export default function EditorPanel({
             <button key={i} onClick={() => wiki(l.raw)}>
               {l.raw}
               <span>
-                {l.candidates.length ? "Choose target" : "Create note"}
+                {l.external
+                  ? "External reference"
+                  : l.candidates.length
+                    ? "Choose target"
+                    : "Create note"}
               </span>
             </button>
           ))}
@@ -213,10 +212,7 @@ export default function EditorPanel({
           )}{" "}
           {dirty ? "Unsaved edits" : status}
         </span>
-        <span>
-          {text.trim() ? text.trim().split(/\s+/).length : 0} words{" "}
-          <span className="separator">·</span> Markdown
-        </span>
+        <span>{text.trim() ? text.trim().split(/\s+/).length : 0} words</span>
       </footer>
     </section>
   );

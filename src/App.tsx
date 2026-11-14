@@ -1,306 +1,259 @@
+import { useEffect, useState } from "react";
 import {
-  ArrowRight,
+  AlertTriangle,
   FolderOpen,
-  GitBranch,
+  Layers,
   LoaderCircle,
   X,
-  AlertTriangle,
 } from "lucide-react";
-import { subjects } from "./types";
-import { wikiTarget } from "./wiki";
 import { useWorkspace } from "./hooks/useWorkspace";
+import { useModalFocus } from "./hooks/useModalFocus";
 import Graph from "./components/Graph";
 import Review from "./components/Review";
-import Sidebar from "./components/Sidebar";
+import Sidebar, { type Action } from "./components/Sidebar";
 import EditorPanel from "./components/EditorPanel";
-import { useModalFocus } from "./hooks/useModalFocus";
+import OrganizationDialog from "./components/OrganizationDialog";
 export default function App() {
-  const {
-    vault,
-    setVault,
-    doc,
-    setDoc,
-    text,
-    setText,
-    busy,
-    error,
-    setError,
-    status,
-    setStatus,
-    query,
-    setQuery,
-    collapsed,
-    setCollapsed,
-    filters,
-    setFilters,
-    mode,
-    setMode,
-    panelWidth,
-    setPanelWidth,
-    review,
-    setReview,
-    create,
-    setCreate,
-    pending,
-    setPending,
-    conflict,
-    setConflict,
-    linkChoice,
-    setLinkChoice,
-    dirty,
-    guard,
-    chooseVault,
-    openNote,
-    save,
-    wiki,
-    createNote,
-    refresh,
-    rate,
-    visible,
-    due,
-    selected,
-    unresolved,
-  } = useWorkspace();
-  useModalFocus(
-    linkChoice
-      ? "link"
-      : pending
-        ? "unsaved"
-        : create !== null
-          ? "create"
-          : review
+  const w = useWorkspace();
+  const { vault, doc, busy, create, pending, linkChoice } = w;
+  const [action, setAction] = useState<Action | null>(null),
+    [noteSubject, setNoteSubject] = useState(""),
+    [width, setWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    const resize = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+  const modal = linkChoice
+    ? "link"
+    : pending
+      ? "unsaved"
+      : create !== null
+        ? "note"
+        : action
+          ? `organization-${action.kind}`
+          : w.review
             ? "review"
-            : "",
-  );
+            : "";
+  useModalFocus(modal);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || busy || action || w.review) return;
+      if (linkChoice) w.setLinkChoice(null);
+      else if (pending) w.setPending(null);
+      else if (create !== null) w.setCreate(null);
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  });
+  function newNote(subject?: string) {
+    w.guard("Create a note?", () => {
+      setNoteSubject(
+        subject ??
+          vault?.organization.location.subject_id ??
+          vault?.organization.subjects.find(
+            (s) => s.neuron_id === vault.organization.location.neuron_id,
+          )?.id ??
+          vault?.organization.fallback_subject ??
+          "",
+      );
+      w.setCreate("");
+      w.setCreateAtRoot(false);
+    });
+  }
+  function showAction(a: Action) {
+    w.guard("Continue with unsaved edits?", () => {
+      w.setReview(false);
+      setAction(a);
+    });
+  }
+  const left = w.collapsed ? 88 : 312;
+  const editorWidth = Math.max(320, Math.min(w.panelWidth, width - left - 250));
   return (
-    <main className="app select-none">
+    <main className="app">
       {!vault ? (
         <div className="welcome">
-          <div className="brand-mark">
-            <GitBranch size={30} strokeWidth={1.5} />
-          </div>
-          <span className="eyebrow">SYNAPSE / A LOCAL STUDY WORKSPACE</span>
-          <h1>
-            Your notes.
-            <br />
-            <span>A clearer connection.</span>
-          </h1>
-          <p>
-            Think in Markdown. Follow an idea.
-            <br />
-            Remember what matters.
-          </p>
+          <Layers size={34} strokeWidth={1.5} />
+          <h1>Synapse</h1>
           <button
             className="primary"
             disabled={busy}
-            onClick={() => void chooseVault()}
+            onClick={() => void w.chooseVault()}
           >
             {busy ? (
-              <LoaderCircle className="spin" size={17} />
+              <LoaderCircle className="spin" size={18} />
             ) : (
-              <FolderOpen size={17} />
+              <FolderOpen size={18} />
             )}
             Open vault
-            <ArrowRight size={16} />
           </button>
-          <small>
-            Choose a folder of Markdown notes.
-            <br />
-            Your files stay yours. Everything works offline.
-          </small>
-          <div className="welcome-foot">
-            DESIGNED FOR FOCUSED STUDY <span>VCE UNITS 3 / 4</span>
-          </div>
+          <p>Choose a folder of Markdown notes</p>
         </div>
       ) : (
         <>
-          <Sidebar
-            {...{
-              vault,
-              doc,
-              busy,
-              query,
-              setQuery,
-              collapsed,
-              setCollapsed,
-              guard,
-              chooseVault,
-              openNote,
-              setCreate,
-              refresh,
-              setReview,
-              visible,
-              due,
-            }}
+          <Graph
+            snapshot={vault}
+            selected={doc?.id}
+            query={w.query}
+            left={left}
+            right={doc ? editorWidth + 32 : 0}
+            onOpen={w.openNote}
+            onNewNote={() => newNote()}
           />
-          <section className="workspace">
-            <header className="workspace-header">
-              <div>
-                <GitBranch size={15} />
-                <span>Connections</span>
-              </div>
+          <Sidebar w={w} onAction={showAction} onNewNote={newNote} />
+          {doc && (
+            <div className="editor-shell glass" style={{ width: editorWidth }}>
               <div
-                className="subject-filters"
-                aria-label="Graph subject filters"
-              >
-                {subjects.map((s) => (
-                  <button
-                    key={s.id}
-                    aria-pressed={filters.has(s.id)}
-                    title={s.name}
-                    className={!filters.has(s.id) ? "off" : ""}
-                    onClick={() =>
-                      setFilters((old) => {
-                        const next = new Set(old);
-                        if (next.has(s.id)) next.delete(s.id);
-                        else next.add(s.id);
-                        return next;
-                      })
-                    }
-                  >
-                    <span
-                      className="subject-dot"
-                      style={{ background: s.color }}
-                    />
-                    {s.short}
-                  </button>
-                ))}
-              </div>
-            </header>
-            <div className="work-panels">
-              <Graph
-                snapshot={vault}
-                selected={doc?.id}
-                query={query}
-                filters={filters}
-                onOpen={openNote}
+                className="resize-handle"
+                role="separator"
+                tabIndex={0}
+                aria-label="Resize editor"
+                aria-orientation="vertical"
+                aria-valuemin={320}
+                aria-valuemax={Math.max(320, width - left - 250)}
+                aria-valuenow={editorWidth}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowLeft") {
+                    e.preventDefault();
+                    w.setPanelWidth(
+                      Math.min(width - left - 250, editorWidth + 24),
+                    );
+                  }
+                  if (e.key === "ArrowRight") {
+                    e.preventDefault();
+                    w.setPanelWidth(Math.max(320, editorWidth - 24));
+                  }
+                }}
+                onPointerDown={(e) =>
+                  e.currentTarget.setPointerCapture(e.pointerId)
+                }
+                onPointerMove={(e) => {
+                  if (e.currentTarget.hasPointerCapture(e.pointerId))
+                    w.setPanelWidth(
+                      Math.max(
+                        320,
+                        Math.min(width - left - 250, width - e.clientX - 16),
+                      ),
+                    );
+                }}
               />
-              {doc && (
-                <>
-                  <div
-                    className="resize-handle"
-                    role="separator"
-                    tabIndex={0}
-                    aria-label="Resize editor"
-                    aria-orientation="vertical"
-                    aria-valuemin={360}
-                    aria-valuemax={1000}
-                    aria-valuenow={panelWidth}
-                    onKeyDown={(e) => {
-                      if (e.key === "ArrowLeft")
-                        setPanelWidth((w) => Math.min(1000, w + 30));
-                      if (e.key === "ArrowRight")
-                        setPanelWidth((w) => Math.max(360, w - 30));
-                    }}
-                    onPointerDown={(e) => {
-                      e.currentTarget.setPointerCapture(e.pointerId);
-                    }}
-                    onPointerMove={(e) => {
-                      if (e.currentTarget.hasPointerCapture(e.pointerId))
-                        setPanelWidth(
-                          Math.max(
-                            360,
-                            Math.min(1000, window.innerWidth - e.clientX),
-                          ),
-                        );
-                    }}
-                  />
-                  <EditorPanel
-                    {...{
-                      vault,
-                      doc,
-                      setDoc,
-                      text,
-                      setText,
-                      busy,
-                      dirty,
-                      mode,
-                      setMode,
-                      panelWidth,
-                      conflict,
-                      setConflict,
-                      guard,
-                      selected,
-                      save,
-                      wiki,
-                      setError,
-                      setStatus,
-                      status,
-                      unresolved,
-                    }}
-                  />
-                </>
-              )}
+              <EditorPanel {...w} panelWidth={editorWidth} />
             </div>
-          </section>
+          )}
+          {(w.status.startsWith("Imported ") ||
+            w.status === "Subject exported") &&
+            !doc && (
+              <div className="completion-toast glass" role="status">
+                {w.status}
+                <button
+                  aria-label="Dismiss status"
+                  onClick={() => w.setStatus("All changes saved")}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            )}
         </>
       )}
-      {(error || !!vault?.warnings.length) && (
-        <div className="notification" role="alert">
-          <AlertTriangle size={17} />
+      {(w.error || !!vault?.warnings.length) && (
+        <div className="notification glass" role="alert">
+          <AlertTriangle size={18} />
           <div className="selectable">
-            {error || vault?.warnings.join("\n")}
+            {w.error || vault?.warnings.join("\n")}
           </div>
           <button
             aria-label="Dismiss notification"
-            title="Dismiss"
             onClick={() => {
-              setError("");
-              if (vault) setVault({ ...vault, warnings: [] });
+              w.setError("");
+              if (vault) w.setVault({ ...vault, warnings: [] });
             }}
           >
-            <X size={16} />
+            <X size={17} />
           </button>
         </div>
       )}
-      {review && vault && (
+      {w.review && vault && (
         <Review
           snapshot={vault}
-          onRate={rate}
-          onClose={() => setReview(false)}
-          onSource={openNote}
-          onWiki={wiki}
+          onRate={w.rate}
+          onClose={() => w.setReview(false)}
+          onSource={w.openNote}
+          onWiki={w.wiki}
         />
       )}
-      {create !== null && (
+      {action && vault && (
+        <OrganizationDialog
+          action={action}
+          w={w}
+          onClose={() => setAction(null)}
+        />
+      )}
+      {create !== null && vault && (
         <div className="overlay">
           <form
-            className="dialog"
+            className="dialog glass"
             role="dialog"
             aria-modal="true"
-            aria-label="Create note"
+            aria-label="New note"
             onSubmit={(e) => {
               e.preventDefault();
-              void createNote();
+              void w.createNote(noteSubject);
             }}
           >
-            <span className="eyebrow">NEW NOTE</span>
-            <h2>Make room for an idea.</h2>
+            <header>
+              <h2>New note</h2>
+              <button
+                type="button"
+                aria-label="Close dialog"
+                disabled={busy}
+                onClick={() => w.setCreate(null)}
+              >
+                <X size={18} />
+              </button>
+            </header>
             <label>
-              Vault-relative path
+              Subject
+              <select
+                aria-label="Note subject"
+                disabled={w.createAtRoot}
+                value={noteSubject}
+                onChange={(e) => setNoteSubject(e.target.value)}
+              >
+                {vault.organization.neurons.map((n) => (
+                  <optgroup key={n.id} label={n.name}>
+                    {vault.organization.subjects
+                      .filter((s) => s.neuron_id === n.id)
+                      .map((s) => (
+                        <option value={s.id} key={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+            <label>
+              {w.createAtRoot ? "Vault-relative note path" : "Note name"}
               <input
                 autoFocus
-                placeholder="Physics/Electromagnetic induction"
+                placeholder="Motion/Conservation of momentum"
                 value={create}
-                onChange={(e) => setCreate(e.target.value)}
+                onChange={(e) => w.setCreate(e.target.value)}
               />
             </label>
-            <p>
-              Use folders to organize your notes. The .md extension is added
-              automatically.
-            </p>
+            <p>Use / to create a subfolder</p>
             <footer>
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => setCreate(null)}
+                onClick={() => w.setCreate(null)}
               >
                 Cancel
               </button>
               <button
                 className="primary"
-                disabled={busy || !create.trim()}
                 type="submit"
+                disabled={busy || !create.trim()}
               >
                 Create note
               </button>
@@ -311,7 +264,7 @@ export default function App() {
       {pending && (
         <div className="overlay">
           <section
-            className="dialog"
+            className="dialog glass"
             role="alertdialog"
             aria-modal="true"
             aria-label={pending.title}
@@ -319,15 +272,15 @@ export default function App() {
             <h2>{pending.title}</h2>
             <p>{pending.detail}</p>
             <footer>
-              <button disabled={busy} onClick={() => setPending(null)}>
+              <button disabled={busy} onClick={() => w.setPending(null)}>
                 Cancel
               </button>
               <button
                 disabled={busy}
                 onClick={() => {
-                  const action = pending.action;
-                  setPending(null);
-                  action();
+                  const next = pending.action;
+                  w.setPending(null);
+                  next();
                 }}
               >
                 Discard edits
@@ -335,15 +288,15 @@ export default function App() {
               <button
                 className="primary"
                 disabled={busy}
-                onClick={() => {
-                  void save().then((ok) => {
+                onClick={() =>
+                  void w.save().then((ok) => {
                     if (ok) {
-                      const action = pending.action;
-                      setPending(null);
-                      action();
-                    } else setPending(null);
-                  });
-                }}
+                      const next = pending.action;
+                      w.setPending(null);
+                      next();
+                    } else w.setPending(null);
+                  })
+                }
               >
                 Save and continue
               </button>
@@ -354,45 +307,65 @@ export default function App() {
       {linkChoice && (
         <div className="overlay">
           <section
-            className="dialog"
+            className="dialog glass"
             role="dialog"
             aria-modal="true"
             aria-label="Resolve WikiLink"
           >
-            <span className="eyebrow">WIKILINK</span>
-            <h2>
-              {linkChoice.ids.length
-                ? "Choose a note"
-                : "A connection waiting to happen."}
-            </h2>
+            <header>
+              <h2>
+                {linkChoice.external
+                  ? "External reference"
+                  : linkChoice.ids.length
+                    ? "Choose a note"
+                    : "Note not found"}
+              </h2>
+              <button
+                aria-label="Close dialog"
+                onClick={() => w.setLinkChoice(null)}
+              >
+                <X size={18} />
+              </button>
+            </header>
             <p className="selectable">[[{linkChoice.raw}]]</p>
+            {linkChoice.external && (
+              <p>
+                This reference points outside the imported subject. Edit its
+                WikiLink to connect it to a note in this vault.
+              </p>
+            )}
             {linkChoice.ids.map((id) => (
               <button
                 className="choice"
                 key={id}
                 onClick={() => {
-                  setLinkChoice(null);
-                  openNote(id);
+                  w.setLinkChoice(null);
+                  w.openNote(id);
                 }}
               >
                 {id}
-                <ArrowRight size={14} />
               </button>
             ))}
             <footer>
-              <button onClick={() => setLinkChoice(null)}>Cancel</button>
-              {!linkChoice.ids.length && (
+              <button onClick={() => w.setLinkChoice(null)}>Close</button>
+              {!linkChoice.external && !linkChoice.ids.length && (
                 <button
                   className="primary"
                   onClick={() => {
-                    const path = wikiTarget(linkChoice.raw).replace(
-                      /^\.\//,
-                      "",
-                    );
-                    setLinkChoice(null);
-                    guard("Create linked note?", () => {
-                      setReview(false);
-                      setCreate(path);
+                    const name = linkChoice.raw
+                      .split(/[|#]/)[0]
+                      .replace(/^\.\//, "");
+                    w.setLinkChoice(null);
+                    w.guard("Create a linked note?", () => {
+                      setNoteSubject(
+                        w.selected?.subject_id ??
+                          vault!.organization.fallback_subject,
+                      );
+                      w.setCreate(name);
+                      w.setCreateAtRoot(
+                        linkChoice.raw.split(/[|#]/)[0].includes("/") ||
+                          linkChoice.raw.includes("\\"),
+                      );
                     });
                   }}
                 >

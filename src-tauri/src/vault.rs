@@ -3,6 +3,7 @@ use crate::{
     flashcards::{self, Card, History},
     links::{self, Edge, WikiLink},
     notes::{self, Note},
+    organization::{self, Organization},
 };
 use serde::Serialize;
 use std::{
@@ -25,6 +26,7 @@ pub const IGNORED: &[&str] = &[
 pub struct Snapshot {
     pub root: String,
     pub name: String,
+    pub organization: Organization,
     pub notes: Vec<Note>,
     pub links: Vec<WikiLink>,
     pub edges: Vec<Edge>,
@@ -63,7 +65,10 @@ pub fn contained(root: &Path, id: &str, markdown: bool) -> Result<PathBuf> {
         }
         match std::fs::symlink_metadata(&path) {
             Ok(meta) => {
-                if meta.file_type().is_symlink() || !path.canonicalize()?.starts_with(root) {
+                if meta.file_type().is_symlink()
+                    || organization::reparse(&meta)
+                    || !path.canonicalize()?.starts_with(root)
+                {
                     return Err(Error::new(
                         "path",
                         "Symlink or junction paths are not supported",
@@ -141,6 +146,7 @@ pub fn atomic_write(
     Ok(())
 }
 pub fn scan(root: &Path) -> Result<Snapshot> {
+    crate::transactions::recover(root)?;
     let mut notes = Vec::new();
     let mut contents = HashMap::new();
     let mut cards = Vec::new();
@@ -178,7 +184,6 @@ pub fn scan(root: &Path) -> Result<Snapshot> {
         let result: Result<Note> = (|| {
             let doc = read(root, &id)?;
             let note = notes::parse(&id, &doc.content)?;
-            cards.extend(flashcards::parse(&note, &doc.content));
             contents.insert(id.clone(), doc.content);
             Ok(note)
         })();
@@ -192,6 +197,8 @@ pub fn scan(root: &Path) -> Result<Snapshot> {
                         id: id.clone(),
                         title: id.clone(),
                         subject: Default::default(),
+                        subject_id: String::new(),
+                        neuron_id: String::new(),
                         revision: doc.revision,
                         neighbors: 0,
                     });
@@ -200,13 +207,34 @@ pub fn scan(root: &Path) -> Result<Snapshot> {
         }
     }
     notes.sort_by(|a, b| a.id.cmp(&b.id));
+    let organization = organization::ensure(root, &notes)?;
+    for note in &mut notes {
+        let subject = organization.membership(note);
+        note.subject_id = subject.id.clone();
+        note.neuron_id = subject.neuron_id.clone();
+        if !subject.legacy {
+            note.subject = subject.preset;
+        }
+        for mut card in flashcards::parse(
+            note,
+            contents.get(&note.id).map(String::as_str).unwrap_or(""),
+        ) {
+            card.content_id = subject
+                .card_keys
+                .get(&card.content_id)
+                .cloned()
+                .unwrap_or(card.content_id);
+            card.id = format!("{}:{}", subject.id, card.content_id);
+            cards.push(card);
+        }
+    }
     cards.sort_by(|a, b| a.source.cmp(&b.source));
     cards.dedup_by(|a, b| a.id == b.id);
     let mut seen = std::collections::HashSet::new();
     cards.retain(|c| seen.insert(c.id.clone()));
-    let (links, edges) = links::build(&mut notes, &contents);
-    let (history, review_error) = match flashcards::load(root) {
-        Ok((h, _)) => (h, None),
+    let (links, edges) = links::build_scoped(&mut notes, &contents, Some(&organization));
+    let (history, review_error) = match flashcards::migrate(root, &cards) {
+        Ok(h) => (h, None),
         Err(e) => (History::default(), Some(e.message)),
     };
     Ok(Snapshot {
@@ -217,6 +245,7 @@ pub fn scan(root: &Path) -> Result<Snapshot> {
             .to_string_lossy()
             .into(),
         notes,
+        organization,
         links,
         edges,
         cards,

@@ -4,11 +4,12 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
-  subjects,
+  inLocation,
   message,
   type Document,
   type Snapshot,
-  type Subject,
+  type Location,
+  type OrganizationAction,
   type Rating,
 } from "../types";
 import { resolveWiki } from "../wiki";
@@ -22,18 +23,17 @@ export function useWorkspace() {
     [status, setStatus] = useState("All changes saved"),
     [query, setQuery] = useState(""),
     [collapsed, setCollapsed] = useState(false);
-  const [filters, setFilters] = useState(
-      new Set<Subject>(subjects.map((s) => s.id)),
-    ),
-    [mode, setMode] = useState<"edit" | "split" | "read">("split"),
-    [panelWidth, setPanelWidth] = useState(650);
+  const [mode, setMode] = useState<"edit" | "split" | "read">("read"),
+    [panelWidth, setPanelWidth] = useState(600);
   const [review, setReview] = useState(false),
+    [createAtRoot, setCreateAtRoot] = useState(false),
     [create, setCreate] = useState<string | null>(null),
     [pending, setPending] = useState<Pending | null>(null),
     [conflict, setConflict] = useState<{ disk: Document | null } | null>(null);
   const [linkChoice, setLinkChoice] = useState<{
     raw: string;
     ids: string[];
+    external?: boolean;
   } | null>(null);
   const dirty = !!doc && text !== doc.content;
   const current = useRef({ vault, doc, text, dirty, busy });
@@ -258,29 +258,35 @@ export function useWorkspace() {
   }, []);
   function wiki(raw: string, source = doc?.id ?? "") {
     if (!vault) return;
+    if (
+      vault.links.some(
+        (l) => l.source === source && l.raw === raw && l.external,
+      )
+    ) {
+      setLinkChoice({ raw, ids: [], external: true });
+      return;
+    }
     const targets = resolveWiki(raw, source, vault.notes);
     if (targets.length === 1) openNote(targets[0].id);
     else setLinkChoice({ raw, ids: targets.map((n) => n.id) });
   }
-  async function createNote() {
+  async function createNote(subjectId: string) {
     if (create === null || !vault || busy) return;
     setBusy(true);
     setError("");
     const id =
       create.trim().replaceAll("\\", "/").replace(/\.md$/i, "") + ".md";
     try {
-      const content = `# ${id.split("/").pop()!.slice(0, -3)}\n\n`;
-      const next = await invoke<Snapshot>("save_note", {
-        vaultRoot: vault.root,
-        id,
-        content,
-        revision: null,
-      });
+      const [next, created] = await invoke<[Snapshot, Document]>(
+        "create_note",
+        {
+          vaultRoot: vault.root,
+          subjectId,
+          path: id,
+          vaultRelative: createAtRoot,
+        },
+      );
       setVault(next);
-      const created = await invoke<Document>("read_note", {
-        vaultRoot: vault.root,
-        id,
-      });
       setDoc(created);
       setText(created.content);
       setCreate(null);
@@ -291,6 +297,40 @@ export function useWorkspace() {
     } finally {
       setBusy(false);
     }
+  }
+  async function organize(
+    action: OrganizationAction,
+  ): Promise<Snapshot | null> {
+    const vault = current.current.vault;
+    if (!vault) return null;
+    setBusy(true);
+    setError("");
+    try {
+      const next = await invoke<Snapshot>("organize", {
+        vaultRoot: vault.root,
+        action,
+      });
+      setVault(next);
+      return next;
+    } catch (e) {
+      fail(e);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+  function selectLocation(location: Location) {
+    guard("Switch location?", () => {
+      void organize({ kind: "select", location }).then((next) => {
+        if (next) {
+          setDoc(null);
+          setText("");
+          setConflict(null);
+          setReview(false);
+          setQuery("");
+        }
+      });
+    });
   }
   async function refresh() {
     if (!vault || busy) return;
@@ -327,7 +367,9 @@ export function useWorkspace() {
     ) ?? [];
   const due =
     vault?.cards.filter(
-      (c) => !vault.history.cards[c.id] || vault.history.cards[c.id].due <= now,
+      (c) =>
+        inLocation(c, vault.organization.location) &&
+        (!vault.history.cards[c.id] || vault.history.cards[c.id].due <= now),
     ).length ?? 0;
   const selected = vault?.notes.find((n) => n.id === doc?.id);
   const unresolved =
@@ -340,6 +382,10 @@ export function useWorkspace() {
     text,
     setText,
     busy,
+    setBusy,
+    fail,
+    organize,
+    selectLocation,
     error,
     setError,
     status,
@@ -348,8 +394,6 @@ export function useWorkspace() {
     setQuery,
     collapsed,
     setCollapsed,
-    filters,
-    setFilters,
     mode,
     setMode,
     panelWidth,
@@ -357,6 +401,8 @@ export function useWorkspace() {
     review,
     setReview,
     create,
+    createAtRoot,
+    setCreateAtRoot,
     setCreate,
     pending,
     setPending,

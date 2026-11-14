@@ -1,77 +1,68 @@
-# Validation record
+# Synapse 0.2 validation
 
-Executed on Windows x64 on 14 November 2026 (Australia/Sydney). All data used for desktop tests was synthetic and remained in ignored `.local/` directories.
+Executed on Windows x64 on 14–15 November 2026 (Australia/Sydney). Desktop tests used generated study data under ignored `.local/` directories and the Windows temporary directory. No personal study vault was used. The v0.1 validation record remains in Git history.
 
 ## Automated checks
 
-| Check                                                     | Result                     |
-| --------------------------------------------------------- | -------------------------- |
-| TypeScript `npm run typecheck`                            | Passed                     |
-| ESLint `npm run lint`                                     | Passed                     |
-| Vitest `npm test`                                         | 5 tests passed             |
-| Rust `cargo test --locked`                                | 7 tests passed             |
-| Rust `cargo fmt --check`                                  | Passed                     |
-| Rust `cargo clippy --locked --all-targets -- -D warnings` | Passed                     |
-| `npm audit`                                               | 0 vulnerabilities reported |
-| Vite production build                                     | Passed                     |
-| Tauri Windows production build and NSIS packaging         | Passed                     |
-| Staged-file exclusions and credential-pattern scan        | Passed                     |
+| Check                                                                                     | Result                                               |
+| ----------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `npm run typecheck`                                                                       | Passed                                               |
+| `npm run lint`                                                                            | Passed                                               |
+| `npm test`                                                                                | 7 tests passed                                       |
+| `cargo test --locked --manifest-path src-tauri/Cargo.toml`                                | 18 tests passed                                      |
+| `cargo fmt --manifest-path src-tauri/Cargo.toml --check`                                  | Passed                                               |
+| `cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings` | Passed                                               |
+| `npm audit`                                                                               | 0 vulnerabilities reported                           |
+| `npm run tauri build`                                                                     | Vite, Rust release and Windows NSIS packaging passed |
 
-Rust coverage includes YAML parsing, subject precedence, duplicate-name resolution, explicit root WikiLinks, code exclusion, card extraction and identity, rating intervals, metadata round trips, malformed metadata preservation, Unicode paths, traversal and junction containment, no-clobber creation, conflict preservation, and a 500-note index.
+The Rust suite retains the original seven tests and adds eleven organization/transfer regressions. Coverage includes legacy subject inference and unchanged note bytes, General/unassigned notes, stable custom-folder membership after rename, duplicate subject names in different Neurons, managed roots overriding presets, stable identities after rename/assignment, and copying every legacy scheduling field with a byte-for-byte backup. Malformed and unsupported metadata remain intact.
 
-The frontend build emits a size advisory for its approximately 1.46 MB uncompressed JavaScript bundle (approximately 474 KB compressed). Assets are embedded in the executable; no network fetch is needed to load them. The installer is about 3.7 MiB and is unsigned. Installer generation was verified; running the installation wizard was not part of the test.
+Transfer tests cover empty and populated package round trips, attachments, aliases and heading fragments, internal remapping, external references, canonical card identities, both history opt-ins, name conflicts, cancellation, missing/escaped attachment paths, malicious archives, case and file/directory collisions, decompression limits, and journal recovery with external-edit preservation. Existing containment tests include Windows junction escapes. The 500-note/500-edge/500-card indexing fixture still passes; no new performance benchmark is claimed. Two frontend label-layout tests verify measured bounds, collision avoidance, truncation, priority and distant-zoom culling; five WikiLink tests remain.
 
-## Desktop integration
+The build reports a bundle-size advisory: about 1.47 MB JavaScript before compression, 479 KB compressed. Assets and KaTeX fonts are embedded. The executable is 13,665,280 bytes and the NSIS installer is 4,261,874 bytes (4.06 MiB). The installer is unsigned. Installer generation was tested; the installation wizard was not run.
 
-The scripts in `scripts/` attach to the actual Tauri WebView2 process. They use real Rust commands, filesystem watchers, and disk persistence. There is no mock vault or substitute persistence layer.
+## Actual desktop integration
 
-`desktop-smoke.mjs` passed on the desktop application:
+The harnesses attach through CDP to the real Tauri WebView2 application. Rust commands, file watching and filesystem persistence are real. Tests report no JavaScript page errors.
 
-- Restore and index the six-note synthetic fixture.
-- Create a seventh note through the interface and compare saved bytes with the editor buffer.
-- Render inline and display KaTeX mathematics.
-- Update graph links after saving and use keyboard WikiLink autocomplete.
-- Protect unsaved edits during navigation.
-- Modify a file outside Synapse; resolve the conflict by keeping local edits, save, and inspect disk contents.
-- Refresh a clean editor after an external change.
-- Toggle subjects and search notes.
-- Reveal and rate a card; read back `flashcards.json`, verify a future due timestamp, and reload the application.
+`scripts/update-desktop.mjs` passed on the final packaged executable. It creates a fresh 97-note fixture across VCE Revision, University and Research Neurons, including duplicate Physics subjects and a dense 90-note subject. It verifies creation, location/graph/review scoping, custom subjects, KaTeX, unsaved-edit protection, an external disk conflict, saving, and independent progress for identical cards. It captures editor-open/closed and 900×600, 1440×900 and 1600×1000 layouts.
 
-`desktop-extended.mjs` passed on the packaged application:
+`scripts/release-verify.mjs` passed on the final packaged executable, after the update harness. It verifies:
 
-- Click a painted graph node and verify the source note opens.
-- Rate a card Again, verify it leaves the due queue, wait through the real 60-second delay, and verify it reappears in the same session.
-- Rate that card Good and verify the subject completion state.
-- Open a generated 500-note, 500-edge vault, then use fit, zoom, reset, search, and the editor.
+- Nested note creation and explicit vault-relative missing-WikiLink creation.
+- Native close-request protection while edits are unsaved, cancellation and saving.
+- Loading the packaged `http://tauri.localhost/` page with WebView2 offline network emulation, editing/saving, KaTeX and a persisted review rating.
+- A pixel-identical graph canvas and unchanged zoom after an ordinary external body edit, preserving camera and node positions.
+- Search, Escape dismissal, focus restoration to the dialog opener, reduced-motion emulation and an opaque glass fallback.
+- Empty-vault rendering and restoration of the previously selected subject.
+- 150% and 200% WebView device-density emulation at 1000×700 CSS pixels. Canvas backing widths are 1500 and 2000 respectively, with no horizontal overflow.
 
-`desktop-offline.mjs` passed after terminating and restarting the packaged executable:
+A separate final executable restart restored the selected Research subject and both persisted review records, comparing the restored history with the saved file. Offline testing did not change Windows adapter settings. Display-density testing exercised the Windows WebView renderer through Chromium emulation; Windows display settings were not changed, and moving between monitors of different DPI was not tested.
 
-- Restore the selected vault and previously saved review history across a process restart.
-- Enable Chromium's offline network emulation and reload the production `http://tauri.localhost/` page successfully.
-- Open a note, render mathematics, edit, and save while offline.
-- Request native window closure with unsaved edits, verify the protection dialog, cancel, and save.
-- Reveal and rate a card offline and verify persisted data.
+`scripts/transfer-desktop.mjs` exercises the development desktop. It supplies native chooser responses at the JavaScript module boundary and uses the real Rust backend for everything thereafter: export excluding history by default, previewing a package with history, leaving its import option off, a safe Physics copy name, a new subject UUID, independent progress, ordinary-folder import, destination-Neuron creation, selected attachments, internal/external links, cancellation and a useful malformed-package error. Its generated source includes an unrelated secret-named file and verifies that file is not copied. The script creates its own history-bearing source package from the update fixture.
 
-Offline testing used WebView2 network emulation. It did not change Windows adapter settings or physically disconnect the computer.
+The final transfer rerun initially encountered Windows error 5 during directory publication inside this checkout. Inspection found an inherited `Everyone: Deny DeleteSubdirectoriesAndFiles` ACL. The destination remained absent, the journal and stage remained available, and organization/history matched their original bytes. The same UI flow passed in a fresh temporary vault. Copying the paused synthetic fixture to the temporary directory also allowed the real recovery command to finish, producing 102 notes and eight subjects with the exact journaled organization/history. The protected source remained unchanged. No ACL or security setting was modified. Vaults need filesystem permission to rename staged directories; an error under restrictive permissions is preserved for recovery rather than bypassed.
 
-## Visual and manual inspection
+Native Windows package/folder picker rendering was inspected. The Windows Security prompt was dismissed by the user. The automation helper continued to report stale child elements or incorrect focus inside the picker, so a complete native selection/save cycle is **not claimed as passed**. The chooser-response substitution above is explicit; it does not replace archive, validation or persistence behavior.
 
-The native desktop window, polished first-launch state, and native Windows folder picker were visually checked. The native automation helper did not reliably target the picker child controls, so selecting a folder through that dialog was not completed by the helper. Subsequent vault selection was exercised through the real `open_vault` command in the desktop harness. This distinction is intentional: the entire native-picker interaction is not claimed as manually passed.
+## Visual inspection
 
-Desktop screenshots were inspected for sidebar layout, subject colors, graph spacing, editor/preview division, mathematics, and status placement. The 500-note graph was exercised by automation; no frame-rate benchmark is claimed. Hover behavior, arbitrary drag gestures, every keyboard focus path, and long multi-hour sessions have not received exhaustive manual coverage.
+Screenshots from the desktop application were inspected for multiple Neurons and duplicate subjects, long names, dense labels, empty states, editor layout, rendered mathematics, export/import previews and conflicts, and small/large windows. The measured-label pass keeps readable text at a consistent size, truncates long titles, and removes lower-priority labels when space is insufficient. The 150%/200% screenshots show aligned nodes and labels; the opaque fallback remains readable. Synthetic screenshots and harness results are retained locally under `.local/`, excluded from Git.
 
-## Measured dataset
+This is focused verification, not exhaustive accessibility certification or a frame-rate benchmark. Arbitrary dragging, every keyboard path, multi-monitor DPI transitions, cloud-sync races and multi-hour sessions remain outside this test record.
 
-The Rust regression fixture contains **500 notes, 500 unique edges, and 500 cards**. Observed debug scan runs took **452–710 ms**. The packaged desktop's measured `open_vault` call took **1,554 ms** on the final build (**2,365 ms** during a concurrent release build), including filesystem scanning, watcher setup, configuration persistence, and IPC. These are individual local observations on this machine and OneDrive-backed workspace, not hardware-independent performance guarantees.
+## Migration and boundaries
 
-## Practical boundaries
+See [MIGRATION.md](MIGRATION.md) for schemas, backup behavior, package limits and recovery. Existing notes are adopted without relocation or rewriting. Rename and **Assign to Neuron** preserve IDs and physical paths; physical subject relocation is not implemented. Legacy global review records are retained and copied into subject-scoped schedules without changing their scheduling fields.
 
-- Conflict detection is optimistic. An unrelated process can race the final atomic replacement; there is no cross-application lock protocol.
-- WikiLink heading fragments resolve the note but do not scroll to the heading.
-- Graph positions and camera state persist during the session, not across process restarts.
-- Local image attachments and external-site launching are not implemented. Notes cannot execute HTML/scripts or fetch remote images.
-- The scheduler is a documented deterministic SM-2-inspired implementation, not FSRS.
-- GitHub Actions contains Windows unit/static checks and installer generation. Local desktop integration results above do not imply that a GitHub-hosted CI run has completed.
+- Attachments are preserved in transfers; local media rendering and remote fetching are not added.
+- WikiLink heading fragments retain their text and resolve the note, but do not scroll to the heading.
+- Camera and graph positions are retained within a session, not across process restarts.
+- Metadata and note replacement use optimistic revision checks, not a cross-application locking protocol.
+- Import publication becomes non-cancellable after its durable journal is written; recovery runs before subsequent snapshots.
+- The scheduler remains the documented deterministic SM-2-inspired algorithm.
+- GitHub Actions runs unit/static checks and installer generation. Local results do not imply that a hosted CI run has completed.
 
-Final tested executable SHA-256: `562cd0355b2bd89fed54935843b993db929449117c014ee143f22ab4ed38ef2e`.
-Final NSIS installer SHA-256: `b5fb8ad2dcd7d4c221c93974d1eb39886490c152ba440df2a1991acae476a3bc`.
+Final executable SHA-256: `e9feb3f2d72038914cd9f95823963035a46ff891643dd5401aff94a3f63bf857`.
+
+Final NSIS installer SHA-256: `39558707f3cf1ef451c74967bb620ff3a06eb65dfda6a4cb1d21fdce72453e1f`.

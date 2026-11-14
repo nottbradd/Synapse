@@ -39,11 +39,13 @@ The Windows CI workflow runs these checks and builds an installer. Dependencies 
 
 ## Workspace
 
-The collapsible sidebar provides search, note creation, and revision. Click a graph node or sidebar note to open the resizable editor. Switch between Edit, Split, and Read. Save explicitly with **Ctrl+S**. Note navigation, vault switching, and window closing protect unsaved edits. Subject buttons filter the graph; search dims nonmatching nodes. Drag nodes to pin their position during the current vault session, pan, zoom, fit, or reset the camera. Camera and positions survive opening notes and ordinary index updates; they are not persisted across restarts.
+The glass sidebar shows **Neurons → subjects → folders and notes**. Select All Neurons, one Neuron, or one subject to scope the graph and revision queue. Neurons and subject instances have persistent UUIDs; two subjects named Physics can have independent notes and progress. Create custom subjects or use VCE presets. Row menus provide rename, assignment to another Neuron, and export. Renaming and assignment change metadata and deliberately keep note paths stable; physical folder relocation is not implemented.
+
+Click a graph node or sidebar note to open the resizable editor. Switch between Edit, Split, and Read; split becomes vertical in narrow editors. Save explicitly with **Ctrl+S**. Note navigation, location/vault switching, and window closing protect unsaved edits. Search dims nonmatching nodes. Drag nodes to pin them, pan, zoom, fit, or reset the camera. Canvas labels use measured screen-space bounds, prioritize interaction and search, avoid nodes/other labels/floating controls, and truncate long titles. Camera and positions survive ordinary index updates during the session; they are not persisted across restarts. The charcoal interface uses a few frosted surfaces, opaque reading areas, reduced-motion handling, and an opaque fallback when backdrop blur is unavailable.
 
 Only Markdown files are study data. Rust recursively indexes them in the background. `.git`, `node_modules`, `target`, `dist`, `build`, `.synapse`, `.obsidian`, and `.trash` are ignored. Notes are identified by normalized vault-relative paths, including their `.md` extension, rather than titles. Existing notes are never reorganized automatically.
 
-Subjects are inferred from recognized YAML frontmatter first, then the top-level folder, then General. Aliases are case insensitive; spaces and underscores normalize to hyphens.
+On first open, legacy notes are adopted into a default Neuron without moving or rewriting them. Recognized YAML frontmatter takes precedence over top-level preset folders; other top-level folders become custom subjects, and root/unassigned notes remain in General. Saved migration membership is stable. Managed subject roots take precedence over frontmatter classification, so duplicate preset subjects cannot steal one another's notes. Preset aliases are case insensitive; spaces and underscores normalize to hyphens. See [migration and package details](MIGRATION.md).
 
 | Subject                | Aliases                                   | Graph color |
 | ---------------------- | ----------------------------------------- | ----------- |
@@ -89,7 +91,7 @@ Term :: Definition
 - YAML, fenced/indented code, inline code, and HTML are excluded. Use code formatting when writing examples of flashcard syntax.
 - Both sides render safe Markdown and bundled KaTeX. Raw HTML and remote images are not executed or fetched. External URLs are shown as text with a tooltip; opening external sites and rendering local attachments are outside this version's scope.
 
-Card IDs are SHA-256 hashes of whitespace-normalized question and answer text separated by a NUL byte. Formatting and answer changes reset the schedule; whitespace changes and moving notes preserve it. Identical cards across notes share one schedule and are shown once, with the lexicographically first source path. Deleted cards disappear from revision, but their history remains in metadata so restoring a card restores its schedule. There is no automatic history pruning.
+Card IDs combine a persistent **subject-instance UUID** and the SHA-256 hash of whitespace-normalized question/answer text separated by a NUL byte. Identical cards share a schedule only within the same subject. Renaming or assigning the subject preserves progress. Formatting and answer changes normally create a new card; whitespace changes do not. Packages carry canonical identity mappings so remapping internal links does not reset an included schedule. Deleted cards disappear from revision, but history is retained; there is no automatic pruning. Legacy global history is copied to each relevant migrated subject/card, preserving every scheduling field.
 
 ## Scheduling and local storage
 
@@ -106,7 +108,15 @@ The deterministic SM-2-inspired scheduler starts at ease 2.5:
 
 Intervals are capped at 3650 days. Due dates use UTC Unix seconds and the computer clock. Each rating increments the review count. This is a small transparent scheduler, not a claim of equivalence with Anki or FSRS.
 
-`flashcards.json` lives at the vault root and stores schema version 1, card ID, last review, due timestamp, interval in days, ease, reviews, and lapses. Missing metadata starts a new history. Malformed or unsupported metadata blocks reviews without rewriting the file; repair it, or explicitly rename it outside Synapse to start fresh. The selected vault path is saved in `%APPDATA%\com.synapse.study\last-vault.json`. Tauri/WebView2 may also maintain runtime data in the application data directory. No accounts, analytics, backend service, or CDN is used. KaTeX fonts and all study assets ship with the app.
+`flashcards.json` lives at the vault root and now uses schema version 2. It stores scoped schedules and retains original global records in `legacy_cards`. The v1 file is backed up byte-for-byte to `.synapse/flashcards-v1-backup.json` before conversion. `.synapse/organization.json` uses schema version 1 and stores stable Neuron/subject records, legacy memberships, imported link/card mappings, and the last selected location. Missing history starts fresh. Malformed, unknown-field, or unsupported metadata is preserved and reported, never silently replaced. The selected vault path is saved in `%APPDATA%\com.synapse.study\last-vault.json`. Tauri/WebView2 also maintains runtime data in the app data directory. No accounts, analytics, backend service, or CDN is used. KaTeX fonts ship with the app.
+
+## Subject transfer
+
+**Import subject** accepts an ordinary Markdown folder or a `.synapse-subject` ZIP package. Choose a destination Neuron (or create one in the flow), review the note/attachment counts and unresolved external references, and confirm the import name. A conflicting name defaults to a separate numbered copy. Every import gets a new subject UUID; existing files and subjects are not overwritten or merged. Packages can include review history only by explicit export opt-in, and importing that history requires a second explicit opt-in. Both default to off.
+
+Use a subject's menu to **Export subject**. Only its Markdown notes and referenced supported local media/PDF files are included. Internal WikiLink targets are mapped to the new root while preserving heading fragments and aliases. External WikiLinks retain their text and are marked unresolved in the copy, even if the destination has a similarly named note. Local attachments are preserved, but rendering them remains outside this version's scope. Native dialogs choose sources/destinations; all content operations run in Rust.
+
+Imports validate paths, case collisions, file types, hashes, schema, sizes and identity maps before publication. Limits are 10,000 content files, 32 MiB per file and 256 MiB total. Symlinks, junctions, traversal, absolute/drive paths, alternate streams, duplicate/conflicting entries and unsupported manifests are rejected. Publication stages a complete directory and uses a durable journal; recovery completes before the next snapshot. Cancellation applies before publication, and the final publication phase is non-cancellable. Detailed format, recovery and supported-reference boundaries are in [MIGRATION.md](MIGRATION.md).
 
 Writes use a synced temporary file in the destination directory followed by atomic persistence, with no-clobber semantics for new notes. Revision hashes detect external changes before replacement. The UI offers disk-versus-editor conflict resolution, and a failed save leaves the editor intact. As with other optimistic file editors, an unrelated writer can still race the final filesystem replacement; this is not a cross-application locking protocol. Use a backup for valuable notes. Symlink escapes, junction escapes, traversal, alternate data streams, and reserved Windows names are rejected. Watcher events are coalesced, and unchanged snapshots (including the app's own saves) are suppressed. Old watchers stop on vault changes.
 
@@ -118,27 +128,32 @@ src/
   components/             Sidebar, editor panel, graph, Markdown, revision
   hooks/                  Vault lifecycle, edit protection, modal focus
   types.ts, wiki.ts        Typed IPC contracts and preview navigation
-  styles.css              Minimal zinc palette and interaction states
+  styles.css              Charcoal/glass tokens and responsive interaction states
+  graphLabels.ts          Measured, collision-aware screen-space labels
 src-tauri/src/
   commands.rs             Async IPC and active-vault state
   vault.rs, watcher.rs     Containment, atomic writes, scanning, change events
   notes.rs, subjects.rs    Markdown/YAML and metadata
   links.rs                Deterministic resolution and graph edges
   flashcards.rs           Parsing, identities, metadata, scheduler
+  organization.rs         Stable IDs, legacy adoption, location and subject ownership
+  packages.rs             Portable archives, references and staged import plans
+  transactions.rs         Journaled publication and interrupted-import recovery
   errors.rs, tests.rs      Typed errors and regression coverage
 fixtures/demo-vault/       Synthetic study notes only
 .github/workflows/         Windows checks and desktop packaging
 ```
 
-See `VALIDATION.md` for the checks actually run, measured dataset, and outstanding limitations.
+See [VALIDATION.md](VALIDATION.md) for the checks actually run and outstanding limitations.
 
-The desktop integration scripts attach to a real WebView2 process and create disposable vaults under ignored `.local/`. To reproduce them, launch the production executable with a local debugging endpoint:
+The desktop integration scripts attach to a real WebView2 process and create disposable vaults. Screenshots and reports stay under ignored `.local/`; `SYNAPSE_QA_BASE` optionally places vault fixtures elsewhere. Use a temporary directory when the checkout inherits restrictive Windows folder permissions. To reproduce the packaged checks, launch the production executable with a local debugging endpoint:
 
 ```powershell
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS='--remote-debugging-port=9222'
+$env:SYNAPSE_QA_BASE=Join-Path $env:TEMP 'synapse-desktop-qa'
 Start-Process .\src-tauri\target\release\synapse.exe
-node scripts/desktop-smoke.mjs
-node scripts/desktop-extended.mjs
+node scripts/update-desktop.mjs
+node scripts/release-verify.mjs
 ```
 
-The extended test waits through an actual 60-second retry and opens 500 synthetic notes. To verify restart and offline persistence, run the smoke script again, close and restart the executable, then run `node scripts/desktop-offline.mjs`. Offline verification uses Chromium network emulation, including a production-page reload. Close the test instance and remove `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` before a normal launch. The CI workflow runs unit/static checks and builds the desktop installer; these interactive desktop scripts are run locally.
+Run the two commands in order: the first creates a fresh fixture, and the second extends that fixture. The update harness covers hierarchy creation, location scoping, editing/conflicts, independent review queues and responsive screenshots. The release harness checks offline operation, missing-note creation, stable graph rendering, focus restoration, empty states and emulated display densities. `transfer-desktop.mjs` runs against the development desktop: it substitutes the native picker module's responses only, and exercises the real Rust export/import/validation/persistence commands. Native picker rendering is inspected separately. The older `desktop-smoke`, `desktop-extended` and `desktop-offline` scripts document the v0.1 baseline and use selectors from that interface. Close test instances and remove `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` before a normal launch. The CI workflow runs unit/static checks and builds the installer; desktop integration runs locally.

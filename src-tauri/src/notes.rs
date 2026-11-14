@@ -11,6 +11,10 @@ pub struct Note {
     pub id: String,
     pub title: String,
     pub subject: Subject,
+    #[serde(default)]
+    pub subject_id: String,
+    #[serde(default)]
+    pub neuron_id: String,
     pub revision: String,
     pub neighbors: usize,
 }
@@ -82,6 +86,8 @@ pub fn parse(id: &str, content: &str) -> Result<Note> {
             .filter(|s| !s.trim().is_empty())
             .unwrap_or_else(|| fallback.into()),
         subject,
+        subject_id: String::new(),
+        neuron_id: String::new(),
         revision: hash(content),
         neighbors: 0,
     })

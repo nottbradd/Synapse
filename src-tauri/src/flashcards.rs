@@ -12,12 +12,16 @@ use std::{
 #[derive(Debug, Clone, Serialize)]
 pub struct Card {
     pub id: String,
+    pub content_id: String,
+    pub subject_id: String,
+    pub neuron_id: String,
     pub source: String,
     pub subject: Subject,
     pub question: String,
     pub answer: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct Review {
     pub card_id: String,
     pub last_review: i64,
@@ -28,15 +32,19 @@ pub struct Review {
     pub lapses: u32,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct History {
     pub schema_version: u32,
     pub cards: BTreeMap<String, Review>,
+    #[serde(default)]
+    pub legacy_cards: BTreeMap<String, Review>,
 }
 impl Default for History {
     fn default() -> Self {
         Self {
-            schema_version: 1,
+            schema_version: 2,
             cards: BTreeMap::new(),
+            legacy_cards: BTreeMap::new(),
         }
     }
 }
@@ -97,7 +105,10 @@ pub fn parse(note: &Note, content: &str) -> Vec<Card> {
                 let id = notes::hash(&format!("{}\u{0}{}", norm(&question), norm(&answer)));
                 if seen.insert(id.clone()) {
                     cards.push(Card {
+                        content_id: id.clone(),
                         id,
+                        subject_id: note.subject_id.clone(),
+                        neuron_id: note.neuron_id.clone(),
                         source: note.id.clone(),
                         subject: note.subject,
                         question,
@@ -152,22 +163,66 @@ pub fn load(root: &Path) -> Result<(History, Option<String>)> {
     let path = vault::contained(root, "flashcards.json", false)?;
     match std::fs::read_to_string(path) {
         Ok(text) => {
-            let h: History = serde_json::from_str(&text)?;
-            if h.schema_version != 1
-                || h.cards.iter().any(|(id, r)| {
-                    id != &r.card_id
-                        || !r.interval.is_finite()
-                        || r.interval < 0.0
-                        || !(1.3..=3.5).contains(&r.ease)
-                        || r.due < 0
-                        || r.last_review < 0
-                })
-            {
-                return Err(Error::new("metadata", "Unsupported or invalid flashcards.json. Repair or rename it to enable reviews; the original file has been preserved."));
-            }
+            let h = decode(&text)?;
             Ok((h, Some(notes::hash(&text))))
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok((History::default(), None)),
         Err(e) => Err(e.into()),
     }
+}
+pub fn decode(text: &str) -> Result<History> {
+    let h: History = serde_json::from_str(text)?;
+    if !matches!(h.schema_version, 1 | 2)
+        || (h.schema_version == 1 && !h.legacy_cards.is_empty())
+        || h.cards.iter().chain(h.legacy_cards.iter()).any(|(id, r)| {
+            id != &r.card_id
+                || !r.interval.is_finite()
+                || r.interval < 0.0
+                || !(1.3..=3.5).contains(&r.ease)
+                || r.due < 0
+                || r.last_review < 0
+        })
+    {
+        return Err(Error::new("metadata", "Unsupported or invalid flashcards.json. Repair or rename it to enable reviews; the original file has been preserved."));
+    }
+    Ok(h)
+}
+
+pub fn migrate(root: &Path, cards: &[Card]) -> Result<History> {
+    let (mut h, rev) = load(root)?;
+    if h.schema_version == 1 {
+        let text = std::fs::read_to_string(vault::contained(root, "flashcards.json", false)?)?;
+        if rev.as_deref() != Some(&notes::hash(&text)) {
+            return Err(Error::new(
+                "conflict",
+                "Review history changed during migration; refresh to retry",
+            ));
+        }
+        let meta = crate::organization::area(root)?;
+        let backup = vault::contained(&meta, "flashcards-v1-backup.json", false)?;
+        if backup.exists() {
+            if std::fs::read_to_string(backup)? != text {
+                return Err(Error::new("metadata", "A different v1 history backup already exists; migration paused and originals preserved"));
+            }
+        } else {
+            vault::atomic_write(&meta, "flashcards-v1-backup.json", &text, None, false)?;
+        }
+        h.legacy_cards = std::mem::take(&mut h.cards);
+        h.schema_version = 2;
+        for card in cards {
+            if let Some(old) = h.legacy_cards.get(&card.content_id) {
+                let mut review = old.clone();
+                review.card_id = card.id.clone();
+                h.cards.insert(card.id.clone(), review);
+            }
+        }
+        vault::atomic_write(
+            root,
+            "flashcards.json",
+            &serde_json::to_string_pretty(&h)?,
+            rev.as_deref(),
+            false,
+        )?;
+    }
+    Ok(h)
 }

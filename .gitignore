@@ -3,6 +3,8 @@ target/
 dist/
 .tools/
 .local/
+.synapse/
+*.synapse-subject
 *.log
 .env*
 !.env.example
