@@ -5,6 +5,8 @@ import {
   ChevronRight,
   FolderOpen,
   Layers,
+  Waypoints,
+  Settings2,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
@@ -25,10 +27,12 @@ export default function Sidebar({
   w,
   onAction,
   onNewNote,
+  onPreferences,
 }: {
   w: Workspace;
   onAction: (a: Action) => void;
   onNewNote: (subject?: string) => void;
+  onPreferences: () => void;
 }) {
   const {
     vault,
@@ -141,7 +145,7 @@ export default function Sidebar({
       >
         <header className="sidebar-head">
           <span className="brand">
-            <Layers size={19} />
+            <Waypoints size={19} />
             {!collapsed && "Synapse"}
           </span>
           <button
@@ -158,6 +162,13 @@ export default function Sidebar({
         </header>
         {collapsed ? (
           <div className="rail">
+            <button
+              title="Preferences"
+              aria-label="Preferences"
+              onClick={onPreferences}
+            >
+              <Settings2 size={18} />
+            </button>
             <button
               title="Search notes"
               aria-label="Search notes"
@@ -356,6 +367,13 @@ export default function Sidebar({
               </button>
             </div>
             <footer className="sidebar-footer">
+              <button
+                title="Preferences"
+                aria-label="Preferences"
+                onClick={onPreferences}
+              >
+                <Settings2 size={16} />
+              </button>
               <button
                 className="review-entry"
                 disabled={busy}

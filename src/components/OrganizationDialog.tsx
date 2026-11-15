@@ -10,6 +10,7 @@ import {
 } from "../types";
 import type { Workspace } from "../hooks/useWorkspace";
 import type { Action } from "./Sidebar";
+import { feedback } from "../interaction/events";
 const count = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 export default function OrganizationDialog({
   action,
@@ -111,12 +112,14 @@ export default function OrganizationDialog({
         } else await invoke("discard_subject_import");
       }
     } catch (e) {
-      if (!canceled.current)
+      if (!canceled.current) {
+        feedback.action({ kind: "error" });
         setError(
           typeof e === "object" && e && "message" in e
             ? String(e.message)
             : String(e),
         );
+      }
     } finally {
       setPhase("idle");
       w.setBusy(false);
@@ -205,8 +208,18 @@ export default function OrganizationDialog({
       w.setText("");
       w.setConflict(null);
       w.setStatus(`Imported ${importName}`);
+      const published = next.notes.filter(
+        (n) => !w.vault!.notes.some((old) => old.id === n.id),
+      );
+      if (published.length)
+        feedback.action({
+          kind: "import",
+          nodes: published.map((n) => n.id),
+          subject: published[0].subject_id,
+        });
       onClose();
     } catch (e) {
+      feedback.action({ kind: "error" });
       setError(
         typeof e === "object" && e && "message" in e
           ? String(e.message)

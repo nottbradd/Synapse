@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { isTauri } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   AlertTriangle,
   FolderOpen,
-  Layers,
+  Waypoints,
+  Settings2,
   LoaderCircle,
   X,
 } from "lucide-react";
@@ -13,9 +16,37 @@ import Review from "./components/Review";
 import Sidebar, { type Action } from "./components/Sidebar";
 import EditorPanel from "./components/EditorPanel";
 import OrganizationDialog from "./components/OrganizationDialog";
+import Preferences from "./components/Preferences";
+import { feedback } from "./interaction/events";
 export default function App() {
   const w = useWorkspace();
   const { vault, doc, busy, create, pending, linkChoice } = w;
+  const drawer = useRef<HTMLDivElement>(null),
+    retained = useRef(w);
+  if (doc) retained.current = w;
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
+  useEffect(() => feedback.attach(), []);
+  useEffect(() => {
+    feedback.cancel();
+  }, [vault?.root]);
+  useEffect(() => {
+    if (!isTauri()) return;
+    let alive = true,
+      notified = false;
+    const unlisten = getCurrentWindow().onFocusChanged(({ payload }) => {
+      notified = true;
+      if (alive) feedback.setNativeFocus(payload);
+    });
+    void getCurrentWindow()
+      .isFocused()
+      .then((focused) => {
+        if (alive && !notified) feedback.setNativeFocus(focused);
+      });
+    return () => {
+      alive = false;
+      void unlisten.then((fn) => fn());
+    };
+  }, []);
   const [action, setAction] = useState<Action | null>(null),
     [noteSubject, setNoteSubject] = useState(""),
     [width, setWidth] = useState(window.innerWidth);
@@ -24,21 +55,24 @@ export default function App() {
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
   }, []);
-  const modal = linkChoice
-    ? "link"
-    : pending
-      ? "unsaved"
-      : create !== null
-        ? "note"
-        : action
-          ? `organization-${action.kind}`
-          : w.review
-            ? "review"
-            : "";
+  const modal = preferencesOpen
+    ? "preferences"
+    : linkChoice
+      ? "link"
+      : pending
+        ? "unsaved"
+        : create !== null
+          ? "note"
+          : action
+            ? `organization-${action.kind}`
+            : w.review
+              ? "review"
+              : "";
   useModalFocus(modal);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || busy || action || w.review) return;
+      if (e.key !== "Escape" || busy || action || w.review || preferencesOpen)
+        return;
       if (linkChoice) w.setLinkChoice(null);
       else if (pending) w.setPending(null);
       else if (create !== null) w.setCreate(null);
@@ -73,7 +107,7 @@ export default function App() {
     <main className="app">
       {!vault ? (
         <div className="welcome">
-          <Layers size={34} strokeWidth={1.5} />
+          <Waypoints size={34} strokeWidth={1.5} />
           <h1>Synapse</h1>
           <button
             className="primary"
@@ -88,58 +122,79 @@ export default function App() {
             Open vault
           </button>
           <p>Choose a folder of Markdown notes</p>
+          <button onClick={() => setPreferencesOpen(true)}>
+            <Settings2 size={16} />
+            Preferences
+          </button>
         </div>
       ) : (
         <>
           <Graph
+            key={vault.root}
             snapshot={vault}
             selected={doc?.id}
             query={w.query}
             left={left}
-            right={doc ? editorWidth + 32 : 0}
+            drawer={drawer}
+            editorWidth={editorWidth}
             onOpen={w.openNote}
             onNewNote={() => newNote()}
           />
-          <Sidebar w={w} onAction={showAction} onNewNote={newNote} />
-          {doc && (
-            <div className="editor-shell glass" style={{ width: editorWidth }}>
+          <Sidebar
+            w={w}
+            onAction={showAction}
+            onNewNote={newNote}
+            onPreferences={() => setPreferencesOpen(true)}
+          />
+          {retained.current.doc &&
+            retained.current.vault?.root === vault.root && (
               <div
-                className="resize-handle"
-                role="separator"
-                tabIndex={0}
-                aria-label="Resize editor"
-                aria-orientation="vertical"
-                aria-valuemin={320}
-                aria-valuemax={Math.max(320, width - left - 250)}
-                aria-valuenow={editorWidth}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowLeft") {
-                    e.preventDefault();
-                    w.setPanelWidth(
-                      Math.min(width - left - 250, editorWidth + 24),
-                    );
+                ref={drawer}
+                inert={!doc}
+                aria-hidden={!doc}
+                className="editor-shell glass"
+                style={{ width: editorWidth }}
+              >
+                <div
+                  className="resize-handle"
+                  role="separator"
+                  tabIndex={0}
+                  aria-label="Resize editor"
+                  aria-orientation="vertical"
+                  aria-valuemin={320}
+                  aria-valuemax={Math.max(320, width - left - 250)}
+                  aria-valuenow={editorWidth}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowLeft") {
+                      e.preventDefault();
+                      w.setPanelWidth(
+                        Math.min(width - left - 250, editorWidth + 24),
+                      );
+                    }
+                    if (e.key === "ArrowRight") {
+                      e.preventDefault();
+                      w.setPanelWidth(Math.max(320, editorWidth - 24));
+                    }
+                  }}
+                  onPointerDown={(e) =>
+                    e.currentTarget.setPointerCapture(e.pointerId)
                   }
-                  if (e.key === "ArrowRight") {
-                    e.preventDefault();
-                    w.setPanelWidth(Math.max(320, editorWidth - 24));
-                  }
-                }}
-                onPointerDown={(e) =>
-                  e.currentTarget.setPointerCapture(e.pointerId)
-                }
-                onPointerMove={(e) => {
-                  if (e.currentTarget.hasPointerCapture(e.pointerId))
-                    w.setPanelWidth(
-                      Math.max(
-                        320,
-                        Math.min(width - left - 250, width - e.clientX - 16),
-                      ),
-                    );
-                }}
-              />
-              <EditorPanel {...w} panelWidth={editorWidth} />
-            </div>
-          )}
+                  onPointerMove={(e) => {
+                    if (e.currentTarget.hasPointerCapture(e.pointerId))
+                      w.setPanelWidth(
+                        Math.max(
+                          320,
+                          Math.min(width - left - 250, width - e.clientX - 16),
+                        ),
+                      );
+                  }}
+                />
+                <EditorPanel
+                  {...(doc ? w : retained.current)}
+                  panelWidth={editorWidth}
+                />
+              </div>
+            )}
           {(w.status.startsWith("Imported ") ||
             w.status === "Subject exported") &&
             !doc && (
@@ -154,6 +209,9 @@ export default function App() {
               </div>
             )}
         </>
+      )}
+      {preferencesOpen && (
+        <Preferences onClose={() => setPreferencesOpen(false)} />
       )}
       {(w.error || !!vault?.warnings.length) && (
         <div className="notification glass" role="alert">

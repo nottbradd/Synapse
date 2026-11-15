@@ -100,19 +100,27 @@ while (
 await page.getByRole("button", { name: qa.dense.name, exact: true }).click();
 await page.waitForTimeout(2500);
 await page.getByRole("button", { name: "Fit graph", exact: true }).click();
-await page.waitForTimeout(500);
+await page.waitForTimeout(1200);
 await page.screenshot({ path: path.resolve(".local/release-dense.png") });
 const zoom = await page.locator(".graph-controls>span").innerText();
-const before = await page.locator(".graph canvas").first().screenshot();
+// Compare Canvas pixels after the spring settles. Element screenshots include
+// overlaid HTML (including independently animated titles), not just the graph.
+const before = await page
+  .locator(".graph canvas")
+  .first()
+  .evaluate((c) => c.toDataURL());
 const notePath = path.join(qa.root, qa.dense.root, "Concept 0.md");
 await writeFile(
   notePath,
   (await readFile(notePath, "utf8")) + "\n\nA plain body edit\n",
 );
 await page.waitForTimeout(1500);
-const after = await page.locator(".graph canvas").first().screenshot();
+const after = await page
+  .locator(".graph canvas")
+  .first()
+  .evaluate((c) => c.toDataURL());
 expect(await page.locator(".graph-controls>span").innerText()).toBe(zoom);
-if (!before.equals(after))
+if (before !== after)
   throw Error("Ordinary edit changed graph camera, positions or rendering");
 await page.getByLabel("Search notes", { exact: true }).fill("long note title");
 await page.screenshot({ path: path.resolve(".local/release-search.png") });

@@ -3,6 +3,7 @@ import { ArrowUpRight, Check, RotateCcw, X } from "lucide-react";
 import type { Rating, Snapshot } from "../types";
 import { inLocation } from "../types";
 import Markdown from "./Markdown";
+import { feedback } from "../interaction/events";
 export default function Review({
   snapshot,
   onRate,
@@ -59,6 +60,8 @@ export default function Review({
     setBusy(true);
     try {
       if (await onRate(card.id, rating)) {
+        if (rating !== "again" && due.length === 1 && !retry)
+          feedback.action({ kind: "complete", subject: card.subject_id });
         setRevealedId(null);
         setDone((n) => n + 1);
         setNow(Date.now() / 1000);

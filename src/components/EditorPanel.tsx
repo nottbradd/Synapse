@@ -2,13 +2,15 @@ import {
   FileText,
   X,
   BookOpen,
-  Layers,
+  Columns2,
   Save,
   Circle,
   Check,
 } from "lucide-react";
 import Editor from "./Editor";
 import Markdown from "./Markdown";
+import TransitionTitle from "./TransitionTitle";
+import { feedback } from "../interaction/events";
 import type { Workspace } from "../hooks/useWorkspace";
 type Props = Pick<
   Workspace,
@@ -75,6 +77,7 @@ export default function EditorPanel({
               setDoc(null);
               setText("");
               setConflict(null);
+              feedback.action({ kind: "close", subject: selected?.subject_id });
             })
           }
         >
@@ -82,7 +85,9 @@ export default function EditorPanel({
         </button>
       </header>
       <div className="note-title">
-        <h2 title={selected?.title}>{selected?.title ?? doc.id}</h2>
+        <h2 title={selected?.title}>
+          <TransitionTitle text={selected?.title ?? doc.id} />
+        </h2>
       </div>
       <div className="editor-toolbar">
         <div className="segmented inset">
@@ -98,7 +103,7 @@ export default function EditorPanel({
               ) : m === "read" ? (
                 <BookOpen size={13} />
               ) : (
-                <Layers size={13} />
+                <Columns2 size={13} />
               )}
               <span>{m[0].toUpperCase() + m.slice(1)}</span>
             </button>
@@ -179,7 +184,11 @@ export default function EditorPanel({
         )}{" "}
         {mode !== "edit" && (
           <div className="preview">
-            <Markdown text={text} onWiki={wiki} />
+            <Markdown
+              text={text}
+              onWiki={wiki}
+              omitTitle={mode === "read" ? selected?.title : undefined}
+            />
           </div>
         )}
       </div>

@@ -8,6 +8,7 @@ export default ts.config(
       "dist",
       "node_modules",
       ".tools",
+      ".local",
       "src-tauri/target",
       "src-tauri/gen",
     ],

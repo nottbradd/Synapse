@@ -70,6 +70,16 @@ $$
 
 Frontmatter is parsed as YAML, never with regex. Ordinary saves preserve the exact editor buffer, including frontmatter. Invalid frontmatter produces a warning while keeping the note accessible for repair.
 
+## Typography, motion and sound
+
+Version 0.3 uses locally bundled Manrope headings and Geist navigation, labels and reading text. Extended Latin assets and system fallbacks cover phonetic characters; KaTeX keeps its specialised fonts. Font licenses are included in the embedded application assets under `licenses/`. Read mode suppresses a matching leading Markdown H1 without changing the note.
+
+Subject clusters use persistent IDs and saved colours. A shared critically damped controller moves the drawer and camera, retains velocity when interrupted, and restores overview framing. Labels measure the loaded font, stay anchored to nodes, and move over the node when a side change is necessary. Fit includes every note; Reset uses the main cluster when a subject has distant outliers. Ordinary body edits retain graph objects and framing; simulation settling no longer pins all nodes. Explicit node drags remain pinned for the session.
+
+Preferences contains Sound and Volume, saved in the application's WebView storage separately from vaults and exported subjects. Sound is generated locally from short noise excitations and damped resonators. Direct actions, successful ratings, published imports and visible linked-note arrivals produce bounded feedback. Typing, hovering, startup and background indexing stay silent. Native focus loss, disabling sound and changing vaults cancel queued feedback. Reduced-motion changes apply immediately at runtime and leave the sound preference independent.
+
+See [interaction architecture](INTERACTION.md) and [executed validation](VALIDATION.md) for timing, lifecycle and test boundaries.
+
 ## WikiLinks
 
 Supported forms: `[[Note]]`, `[[Folder/Note]]`, `[[Note|Display label]]`, and `[[Note#Heading]]`. Headings are accepted for target resolution; navigation opens the note rather than scrolling to a heading. `[[#Heading]]` refers to the current note. Matching is case insensitive. Explicit paths with a folder resolve against the vault root. Short names match filenames or frontmatter titles only when unambiguous, including duplicates at the vault root. Code blocks, inline code, HTML blocks, and YAML are excluded from extraction. Graph edges are unique undirected note pairs; self-links do not increase node size.

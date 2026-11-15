@@ -13,6 +13,7 @@ import {
   type Rating,
 } from "../types";
 import { resolveWiki } from "../wiki";
+import { feedback } from "../interaction/events";
 type Pending = { title: string; detail: string; action: () => void };
 export function useWorkspace() {
   const [vault, setVault] = useState<Snapshot | null>(null),
@@ -24,7 +25,7 @@ export function useWorkspace() {
     [query, setQuery] = useState(""),
     [collapsed, setCollapsed] = useState(false);
   const [mode, setMode] = useState<"edit" | "split" | "read">("read"),
-    [panelWidth, setPanelWidth] = useState(600);
+    [panelWidth, setPanelWidth] = useState(480);
   const [review, setReview] = useState(false),
     [createAtRoot, setCreateAtRoot] = useState(false),
     [create, setCreate] = useState<string | null>(null),
@@ -44,8 +45,9 @@ export function useWorkspace() {
     const t = setInterval(() => setNow(Date.now() / 1000), 1000);
     return () => clearInterval(t);
   }, []);
-  const fail = useCallback((e: unknown) => {
+  const fail = useCallback((e: unknown, audible = false) => {
     setError(message(e));
+    if (audible) feedback.action({ kind: "error" });
   }, []);
   const applySnapshot = useCallback(
     async (next: Snapshot) => {
@@ -102,7 +104,7 @@ export function useWorkspace() {
       .then((s) => {
         if (!cancelled) setVault(s);
       })
-      .catch(fail)
+      .catch((e: unknown) => fail(e))
       .finally(() => {
         if (!cancelled) setBusy(false);
       });
@@ -156,6 +158,7 @@ export function useWorkspace() {
           });
           if (typeof path === "string") {
             const s = await invoke<Snapshot>("open_vault", { path });
+            feedback.cancel();
             loadSerial.current++;
             setVault(s);
             setDoc(null);
@@ -165,14 +168,18 @@ export function useWorkspace() {
             setReview(false);
           }
         } catch (e) {
-          fail(e);
+          fail(e, true);
         } finally {
           setBusy(false);
         }
       })();
     });
   }
-  function openNote(id: string) {
+  function openNote(
+    id: string,
+    reason: "select" | "follow" = "select",
+    source?: string,
+  ) {
     guard("Open another note?", () => {
       void (async () => {
         const root = current.current.vault?.root;
@@ -191,9 +198,16 @@ export function useWorkspace() {
             setConflict(null);
             setReview(false);
             setStatus("All changes saved");
+            feedback.action({
+              kind: reason,
+              node: id,
+              source,
+              subject: current.current.vault?.notes.find((n) => n.id === id)
+                ?.subject_id,
+            });
           }
         } catch (e) {
-          fail(e);
+          fail(e, true);
         } finally {
           if (serial === loadSerial.current) setBusy(false);
         }
@@ -235,7 +249,7 @@ export function useWorkspace() {
           setConflict({ disk: null });
         }
       }
-      fail(e);
+      fail(e, true);
       setStatus("Save failed — edits retained");
       return false;
     } finally {
@@ -267,7 +281,7 @@ export function useWorkspace() {
       return;
     }
     const targets = resolveWiki(raw, source, vault.notes);
-    if (targets.length === 1) openNote(targets[0].id);
+    if (targets.length === 1) openNote(targets[0].id, "follow", source);
     else setLinkChoice({ raw, ids: targets.map((n) => n.id) });
   }
   async function createNote(subjectId: string) {
@@ -292,8 +306,9 @@ export function useWorkspace() {
       setCreate(null);
       setConflict(null);
       setStatus("Note created");
+      feedback.action({ kind: "select", node: created.id, subject: subjectId });
     } catch (e) {
-      fail(e);
+      fail(e, true);
     } finally {
       setBusy(false);
     }
@@ -313,13 +328,18 @@ export function useWorkspace() {
       setVault(next);
       return next;
     } catch (e) {
-      fail(e);
+      fail(e, true);
       return null;
     } finally {
       setBusy(false);
     }
   }
   function selectLocation(location: Location) {
+    if (
+      JSON.stringify(location) ===
+      JSON.stringify(current.current.vault?.organization.location)
+    )
+      return;
     guard("Switch location?", () => {
       void organize({ kind: "select", location }).then((next) => {
         if (next) {
@@ -328,6 +348,10 @@ export function useWorkspace() {
           setConflict(null);
           setReview(false);
           setQuery("");
+          feedback.action({
+            kind: location.subject_id || location.neuron_id ? "focus" : "leave",
+            subject: location.subject_id ?? undefined,
+          });
         }
       });
     });
@@ -341,7 +365,7 @@ export function useWorkspace() {
       );
       setStatus("Vault refreshed");
     } catch (e) {
-      fail(e);
+      fail(e, true);
     } finally {
       setBusy(false);
     }
@@ -355,9 +379,13 @@ export function useWorkspace() {
         rating,
       });
       setVault(next);
+      feedback.action({
+        kind: rating === "again" ? "forgot" : "remembered",
+        subject: vault.cards.find((c) => c.id === id)?.subject_id,
+      });
       return true;
     } catch (e) {
-      fail(e);
+      fail(e, true);
       return false;
     }
   }
