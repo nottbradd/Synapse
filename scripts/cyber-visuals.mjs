@@ -1,6 +1,6 @@
 // Comparable screenshots of the real Tauri WebView, with persistent fixture IDs.
 import { chromium, expect } from "@playwright/test";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 const browser = await chromium.connectOverCDP("http://127.0.0.1:9222"),
   context = browser.contexts()[0],
@@ -116,6 +116,7 @@ await page
   .getByRole("button", { name: "Close study drawer", exact: true })
   .click();
 const session = await context.newCDPSession(page);
+await page.setViewportSize({ width: 1200, height: 800 });
 for (const dpr of [1.5, 2]) {
   await session.send("Emulation.setDeviceMetricsOverride", {
     width: 1200,
@@ -125,13 +126,25 @@ for (const dpr of [1.5, 2]) {
   });
   await page.reload();
   await expect(page.locator(".sidebar")).toBeVisible();
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(1800);
+  await page.getByRole("button", { name: "Fit graph", exact: true }).click();
+  await page.waitForTimeout(1000);
   expect(
     await page.evaluate(() =>
       [...document.querySelectorAll(".graph canvas")].map((c) => c.width),
     ),
   ).toEqual([1200 * dpr, 1200 * dpr]);
-  await shot(`renderer-dpr-${dpr}`);
+  // Capture directly: Playwright's screenshot viewport reset would undo the
+  // explicit DPR override before the graph's ResizeObserver catches up.
+  const captured = await session.send("Page.captureScreenshot", {
+    format: "png",
+    fromSurface: true,
+    captureBeyondViewport: false,
+  });
+  await writeFile(
+    path.join(output, `renderer-dpr-${dpr}.png`),
+    Buffer.from(captured.data, "base64"),
+  );
 }
 await session.send("Emulation.clearDeviceMetricsOverride");
 await page.setViewportSize({ width: 900, height: 600 });
