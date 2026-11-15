@@ -18,6 +18,8 @@ import EditorPanel from "./components/EditorPanel";
 import OrganizationDialog from "./components/OrganizationDialog";
 import Preferences from "./components/Preferences";
 import { feedback } from "./interaction/events";
+import StudyPanel from "./components/StudyPanel";
+import { useStudy } from "./hooks/useStudy";
 export default function App() {
   const w = useWorkspace();
   const { vault, doc, busy, create, pending, linkChoice } = w;
@@ -25,6 +27,17 @@ export default function App() {
     retained = useRef(w);
   if (doc) retained.current = w;
   const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [studyPanel, setStudyPanel] = useState<{
+    origin: string;
+    view: "create" | "library";
+  } | null>(null);
+  const studyOrigin = JSON.stringify([
+    vault?.root,
+    vault?.organization.location,
+    doc?.id,
+  ]);
+  const studyOpen = studyPanel?.origin === studyOrigin;
+  const study = useStudy(vault?.root);
   useEffect(() => feedback.attach(), []);
   useEffect(() => {
     feedback.cancel();
@@ -102,7 +115,10 @@ export default function App() {
     });
   }
   const left = w.collapsed ? 88 : 312;
-  const editorWidth = Math.max(320, Math.min(w.panelWidth, width - left - 250));
+  const editorWidth = Math.max(
+    320,
+    Math.min(studyOpen ? 560 : w.panelWidth, width - left - 180),
+  );
   return (
     <main className="app">
       {!vault ? (
@@ -137,6 +153,7 @@ export default function App() {
             left={left}
             drawer={drawer}
             editorWidth={editorWidth}
+            auxiliaryOpen={studyOpen}
             onOpen={w.openNote}
             onNewNote={() => newNote()}
           />
@@ -145,16 +162,32 @@ export default function App() {
             onAction={showAction}
             onNewNote={newNote}
             onPreferences={() => setPreferencesOpen(true)}
+            onStudy={(view) =>
+              w.guard("Open study tools?", () => {
+                w.setReview(false);
+                if (studyOpen)
+                  window.dispatchEvent(
+                    new CustomEvent("synapse-study-screen", { detail: view }),
+                  );
+                else setStudyPanel({ origin: studyOrigin, view });
+              })
+            }
+            remindersReady={
+              study.view?.data.reminders.filter((r) => r.pending_due !== null)
+                .length ?? 0
+            }
           />
-          {retained.current.doc &&
-            retained.current.vault?.root === vault.root && (
-              <div
-                ref={drawer}
-                inert={!doc}
-                aria-hidden={!doc}
-                className="editor-shell glass"
-                style={{ width: editorWidth }}
-              >
+          {(studyOpen ||
+            (retained.current.doc &&
+              retained.current.vault?.root === vault.root)) && (
+            <div
+              ref={drawer}
+              inert={!doc && !studyOpen}
+              aria-hidden={!doc && !studyOpen}
+              className="editor-shell glass"
+              style={{ width: editorWidth }}
+            >
+              {!studyOpen && (
                 <div
                   className="resize-handle"
                   role="separator"
@@ -189,12 +222,32 @@ export default function App() {
                       );
                   }}
                 />
+              )}
+              {studyOpen ? (
+                <StudyPanel
+                  key={studyOrigin}
+                  snapshot={vault}
+                  currentNote={doc?.id}
+                  initialView={studyPanel.view}
+                  view={study.view}
+                  loadError={study.error}
+                  onRefresh={study.refresh}
+                  onSnapshot={w.setVault}
+                  onOpen={(id) => {
+                    setStudyPanel(null);
+                    w.openNote(id);
+                  }}
+                  onClose={() => setStudyPanel(null)}
+                  onSettings={() => setPreferencesOpen(true)}
+                />
+              ) : (
                 <EditorPanel
                   {...(doc ? w : retained.current)}
                   panelWidth={editorWidth}
                 />
-              </div>
-            )}
+              )}
+            </div>
+          )}
           {(w.status.startsWith("Imported ") ||
             w.status === "Subject exported") &&
             !doc && (

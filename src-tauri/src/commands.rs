@@ -26,7 +26,7 @@ pub struct Inner {
 }
 #[derive(Default, Clone)]
 pub struct Backend(pub Arc<Mutex<Inner>>, pub Arc<AtomicBool>);
-fn root(inner: &Inner, expected: &str) -> Result<PathBuf> {
+pub(crate) fn root(inner: &Inner, expected: &str) -> Result<PathBuf> {
     let p = inner
         .root
         .clone()
@@ -36,13 +36,13 @@ fn root(inner: &Inner, expected: &str) -> Result<PathBuf> {
     }
     Ok(p)
 }
-fn refresh(inner: &mut Inner, path: &std::path::Path) -> Result<Snapshot> {
+pub(crate) fn refresh(inner: &mut Inner, path: &std::path::Path) -> Result<Snapshot> {
     let s = vault::scan(path)?;
     inner.signature = serde_json::to_string(&s)?;
     inner.snapshot = Some(s.clone());
     Ok(s)
 }
-async fn work<T: Send + 'static>(
+pub(crate) async fn work<T: Send + 'static>(
     state: &Backend,
     f: impl FnOnce(&mut Inner) -> Result<T> + Send + 'static,
 ) -> Result<T> {
@@ -78,6 +78,7 @@ pub async fn open_vault(
     state: State<'_, Backend>,
     path: String,
 ) -> Result<Snapshot> {
+    app.state::<crate::ai::AiState>().cancel(None);
     let shared = Arc::downgrade(&state.0);
     work(&state, move |inner| {
         let path = PathBuf::from(path).canonicalize()?;
@@ -138,10 +139,14 @@ pub enum OrganizationAction {
 }
 #[tauri::command]
 pub async fn organize(
+    app: tauri::AppHandle,
     state: State<'_, Backend>,
     vault_root: String,
     action: OrganizationAction,
 ) -> Result<Snapshot> {
+    if matches!(&action, OrganizationAction::Select { .. }) {
+        app.state::<crate::ai::AiState>().cancel(None);
+    }
     work(&state, move |i| {
         let root = root(i, &vault_root)?;
         let (mut org, rev) = organization::load(&root)?;

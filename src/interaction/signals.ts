@@ -5,6 +5,7 @@ import {
   type Frame,
   type Viewport,
 } from "./motion";
+import { connection, curveLength } from "./connections";
 export interface SignalNode {
   id: string;
   x?: number;
@@ -55,7 +56,11 @@ export function planSignals(
       if (!inside(a, bounds) || !inside(b, bounds)) return [];
       const duration = Math.max(
         80,
-        (Math.hypot(b.x - a.x, b.y - a.y) / MOTION.signalSpeed) * 1000,
+        Math.min(
+          1100,
+          (curveLength(connection(a, b, source, n.id)) / MOTION.signalSpeed) *
+            1000,
+        ),
       );
       return [
         {
@@ -77,7 +82,12 @@ export function planSignals(
       ];
     })
     .sort((a, b) => a.duration - b.duration || a.target.localeCompare(b.target))
-    .slice(0, 12);
+    .slice(0, 12)
+    .map((packet, i) => ({
+      ...packet,
+      start: packet.start + i * 18,
+      arrival: packet.arrival + i * 18,
+    }));
 }
 export class SignalTimeline {
   packets: SignalPacket[] = [];

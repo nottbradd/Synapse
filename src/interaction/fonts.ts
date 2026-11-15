@@ -1,5 +1,5 @@
 export const LABEL_FONT = "400 14px Geist";
-export const CAPTION_FONT = "500 16px Manrope";
+export const CAPTION_FONT = "500 14px Manrope";
 export class TextMeasurements {
   private cache = new Map<string, number>();
   revision = 0;

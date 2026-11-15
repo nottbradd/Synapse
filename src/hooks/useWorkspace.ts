@@ -134,17 +134,21 @@ export function useWorkspace() {
   useEffect(() => {
     if (!isTauri()) return;
     const cleanup = getCurrentWindow().onCloseRequested((e) => {
-      if (current.current.dirty || current.current.busy) {
-        e.preventDefault();
-        guard("Close Synapse?", () => {
-          void getCurrentWindow().destroy();
-        });
-      }
+      e.preventDefault();
+      guard("Close Synapse?", () => {
+        void invoke("close_synapse_window", { quit: false }).catch(fail);
+      });
     });
+    const quit = listen("synapse-quit-requested", () =>
+      guard("Quit Synapse?", () => {
+        void invoke("close_synapse_window", { quit: true }).catch(fail);
+      }),
+    );
     return () => {
       void cleanup.then((f) => f());
+      void quit.then((f) => f());
     };
-  }, [guard]);
+  }, [guard, fail]);
   async function chooseVault() {
     guard("Switch vault?", () => {
       void (async () => {
@@ -229,6 +233,25 @@ export function useWorkspace() {
       });
       setVault(next);
       const revision = next.notes.find((n) => n.id === state.doc!.id)?.revision;
+      const oldEdges = new Set(
+        state.vault.edges.map((e) =>
+          [e.source, e.target].sort().join("\u0000"),
+        ),
+      );
+      const targets = next.edges
+        .filter(
+          (e) =>
+            (e.source === state.doc!.id || e.target === state.doc!.id) &&
+            !oldEdges.has([e.source, e.target].sort().join("\u0000")),
+        )
+        .map((e) => (e.source === state.doc!.id ? e.target : e.source));
+      if (targets.length)
+        feedback.action({
+          kind: "connect",
+          node: state.doc.id,
+          targets,
+          subject: next.notes.find((n) => n.id === state.doc!.id)?.subject_id,
+        });
       if (!revision)
         throw new Error(
           "The note was saved but could not be indexed. Refresh to inspect it.",

@@ -63,7 +63,11 @@ export default function Review({
     try {
       if (await onRate(card.id, rating)) {
         if (rating !== "again" && due.length === 1 && !retry)
-          feedback.action({ kind: "complete", subject: card.subject_id });
+          feedback.action({
+            kind: "complete",
+            subject: card.subject_id,
+            node: card.source,
+          });
         setRevealedId(null);
         setDone((n) => n + 1);
         setNow(Date.now() / 1000);

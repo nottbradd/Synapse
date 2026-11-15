@@ -11,7 +11,8 @@ import {
 import type { Workspace } from "../hooks/useWorkspace";
 import type { Action } from "./Sidebar";
 import { feedback } from "../interaction/events";
-const count = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const count = (n: number, word: string, plural = `${word}s`) =>
+  `${n} ${n === 1 ? word : plural}`;
 export default function OrganizationDialog({
   action,
   w,
@@ -310,8 +311,13 @@ export default function OrganizationDialog({
                 checked={includeHistory}
                 onChange={(e) => setIncludeHistory(e.target.checked)}
               />
-              Include review history
+              Include review history and quiz attempts
             </label>
+            <p>
+              Saved quizzes, flashcard source mappings and reminder definitions
+              are included. Imported reminders stay paused until you edit and
+              save them.
+            </p>
           </>
         )}
         {(action.kind === "new-neuron" ||
@@ -402,14 +408,23 @@ export default function OrganizationDialog({
                 Name already exists. Import as <strong>{importName}</strong>
               </p>
             )}
-            {preview.has_history && (
+            {(preview.quizzes > 0 ||
+              preview.reminders > 0 ||
+              preview.flashcard_batches > 0) && (
+              <p>
+                {count(preview.quizzes, "quiz", "quizzes")} ·{" "}
+                {count(preview.reminders, "paused reminder")} ·{" "}
+                {count(preview.flashcard_batches, "flashcard source mapping")}
+              </p>
+            )}
+            {(preview.has_history || preview.quiz_attempts > 0) && (
               <label className="check-row">
                 <input
                   type="checkbox"
                   checked={includeHistory}
                   onChange={(e) => setIncludeHistory(e.target.checked)}
                 />
-                Import included review history
+                Import included review history and quiz attempts
               </label>
             )}
             {preview.external_count > 0 && (

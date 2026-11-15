@@ -3,6 +3,7 @@ use crate::{
     flashcards::{self, Review},
     links, notes,
     organization::{self, SubjectRecord},
+    study, study_transfer,
     subjects::Subject,
     transactions::{self, Journal},
     vault::{self, Snapshot},
@@ -47,6 +48,8 @@ pub struct Manifest {
     pub links: BTreeMap<String, Vec<LinkMap>>,
     pub card_keys: BTreeMap<String, String>,
     pub history: Option<BTreeMap<String, Review>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub study: Option<study_transfer::Portable>,
 }
 pub struct Plan {
     pub token: String,
@@ -64,6 +67,10 @@ pub struct Preview {
     pub external_references: Vec<String>,
     pub external_count: usize,
     pub has_history: bool,
+    pub quizzes: usize,
+    pub reminders: usize,
+    pub quiz_attempts: usize,
+    pub flashcard_batches: usize,
 }
 impl Plan {
     pub fn preview(&self) -> Preview {
@@ -78,6 +85,18 @@ impl Plan {
             })
             .collect();
         Preview {
+            quizzes: self.manifest.study.as_ref().map_or(0, |s| s.quizzes.len()),
+            reminders: self
+                .manifest
+                .study
+                .as_ref()
+                .map_or(0, |s| s.reminders.len()),
+            quiz_attempts: self.manifest.study.as_ref().map_or(0, |s| s.attempts.len()),
+            flashcard_batches: self
+                .manifest
+                .study
+                .as_ref()
+                .map_or(0, |s| s.flashcard_batches.len()),
             token: self.token.clone(),
             name: self.manifest.subject.name.clone(),
             color: self.manifest.subject.color.clone(),
@@ -196,7 +215,8 @@ fn paths(root: &Path, names: impl Iterator<Item = String>) -> Result<()> {
 }
 fn validate(root: &Path, plan: &Plan) -> Result<()> {
     let m = &plan.manifest;
-    if m.schema_version != 1
+    if !(1..=2).contains(&m.schema_version)
+        || (m.schema_version == 1 && m.study.is_some())
         || uuid::Uuid::parse_str(&m.subject.id).is_err()
         || !organization::color(&m.subject.color)
     {
@@ -221,6 +241,9 @@ fn validate(root: &Path, plan: &Plan) -> Result<()> {
         ));
     }
     let note_set: BTreeSet<_> = m.notes.iter().cloned().collect();
+    if let Some(s) = &m.study {
+        s.validate(&m.subject.id, &note_set)?;
+    }
     if note_set.len() != m.notes.len()
         || m.notes
             .iter()
@@ -455,7 +478,11 @@ pub fn prepare_export(
         links: BTreeMap::new(),
         card_keys: BTreeMap::new(),
         history: include_history.then(BTreeMap::new),
+        study: study_transfer::export(&study::load(root)?.data, sid, &mapping, include_history)?,
     };
+    if manifest.study.is_some() {
+        manifest.schema_version = 2;
+    }
     for link in snapshot
         .links
         .iter()
@@ -763,6 +790,7 @@ fn folder(source: &Path, cancel: &AtomicBool) -> Result<Plan> {
         links: mappings,
         card_keys: BTreeMap::new(),
         history: None,
+        study: None,
     };
     Ok(Plan {
         token: organization::id(),
@@ -890,6 +918,35 @@ pub fn import(
         }
     }
     org.subjects.push(subject);
+    let (study_before, study_after) = if let Some(portable) = &plan.manifest.study {
+        let mut view = study::load(root)?;
+        let before = match fs::read_to_string(vault::contained(
+            &organization::area(root)?,
+            "study.json",
+            false,
+        )?) {
+            Ok(raw) => Some(raw),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(e) => return Err(e.into()),
+        };
+        if before.as_ref().map(|s| notes::hash(s)) != view.revision {
+            return Err(Error::new(
+                "conflict",
+                "Study content changed; refresh before importing",
+            ));
+        }
+        study_transfer::import(
+            &mut view.data,
+            portable,
+            &sid,
+            &dest,
+            &plan.manifest.notes,
+            include_history,
+        )?;
+        (before, Some(serde_json::to_string_pretty(&view.data)?))
+    } else {
+        (None, None)
+    };
     org.location = organization::Location {
         neuron_id: Some(nid.into()),
         subject_id: Some(sid.clone()),
@@ -924,6 +981,8 @@ pub fn import(
         organization_after: serde_json::to_string_pretty(&org)?,
         history_before: original_history,
         history_after: serde_json::to_string_pretty(&history)?,
+        study_before,
+        study_after,
     };
     // Once durable publication starts cancellation no longer applies. Retain staging on
     // failure so next refresh can finish the same operation without losing any originals.

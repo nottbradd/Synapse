@@ -19,6 +19,7 @@ export default function Graph({
   left,
   drawer,
   editorWidth,
+  auxiliaryOpen = false,
   onOpen,
   onNewNote,
 }: {
@@ -28,6 +29,7 @@ export default function Graph({
   left: number;
   drawer: RefObject<HTMLDivElement | null>;
   editorWidth: number;
+  auxiliaryOpen?: boolean;
   onOpen: (id: string) => void;
   onNewNote: () => void;
 }) {
@@ -76,9 +78,18 @@ export default function Graph({
       snapshot,
       selected,
       query,
-      { ...size, left: sidebar?.right ?? left },
+      {
+        ...size,
+        left: sidebar?.right ?? left,
+        top: (heading.current?.getBoundingClientRect().bottom ?? 68) + 24,
+        bottom:
+          size.height -
+          (controls.current?.getBoundingClientRect().top ?? size.height - 64) +
+          24,
+      },
       editorWidth,
       reduced,
+      auxiliaryOpen,
     );
   }, [
     snapshot,
@@ -90,6 +101,7 @@ export default function Graph({
     reduced,
     scene,
     drawer,
+    auxiliaryOpen,
   ]);
   useEffect(() => scene.installForces(), [scene, topology]);
   const location = snapshot.organization.location,

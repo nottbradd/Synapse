@@ -16,7 +16,7 @@ export const idOf = (value: unknown) =>
     ? String(value.id)
     : String(value);
 export const nodeRadius = (n: Note) =>
-  Math.min(9.4, 4.3 + Math.sqrt(n.neighbors) * 0.85);
+  n.neighbors < 2 ? 3.7 : Math.min(10, 5.5 + Math.sqrt(n.neighbors) * 0.85);
 export const nodeScreenRadius = (n: Note, zoom: number) =>
   nodeRadius(n) *
   Math.max(0.8, Math.min(1.15, 0.94 + Math.log2(Math.max(0.1, zoom)) * 0.08));
@@ -67,7 +67,7 @@ export class GraphTopology {
       if (!this.anchors.has(subject.id)) {
         const i = this.anchors.size,
           angle = i * 2.3999632297,
-          spread = Math.sqrt(i) * 100;
+          spread = Math.sqrt(i) * 150;
         this.anchors.set(subject.id, {
           x: Math.cos(angle) * spread * 1.12,
           y: Math.sin(angle) * spread * 0.9,

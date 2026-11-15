@@ -139,6 +139,10 @@ export interface ImportPreview {
   external_references: string[];
   external_count: number;
   has_history: boolean;
+  quizzes: number;
+  reminders: number;
+  quiz_attempts: number;
+  flashcard_batches: number;
 }
 export type OrganizationAction =
   | { kind: "new_neuron"; name: string }

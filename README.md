@@ -1,6 +1,6 @@
 # Synapse
 
-A compact, offline Windows workspace for Markdown notes, linked knowledge, and flashcard revision. Built with Tauri v2, Rust, React, TypeScript, Vite, Tailwind, CodeMirror 6, and a Canvas force graph.
+A local-first Windows workspace for Markdown notes, linked knowledge, flashcard revision, quizzes and reminders. Optional bring-your-own-key OpenAI generation creates editable study drafts. Built with Tauri v2, Rust, React, TypeScript, Vite, Tailwind, CodeMirror 6, and a Canvas force graph.
 
 Open a folder to start. Synapse never populates a personal vault with sample content. A clearly marked synthetic vault is available in `fixtures/demo-vault`; copy it to a temporary folder before experimenting.
 
@@ -39,11 +39,11 @@ The Windows CI workflow runs these checks and builds an installer. Dependencies 
 
 ## Workspace
 
-The glass sidebar shows **Neurons → subjects → folders and notes**. Select All Neurons, one Neuron, or one subject to scope the graph and revision queue. Neurons and subject instances have persistent UUIDs; two subjects named Physics can have independent notes and progress. Create custom subjects or use VCE presets. Row menus provide rename, assignment to another Neuron, and export. Renaming and assignment change metadata and deliberately keep note paths stable; physical folder relocation is not implemented.
+The matte charcoal sidebar shows **Neurons → subjects → folders and notes**. Select All Neurons, one Neuron, or one subject to scope the graph and revision queue. Neurons and subject instances have persistent UUIDs; two subjects named Physics can have independent notes and progress. Create custom subjects or use VCE presets. Row menus provide rename, assignment to another Neuron, and export. Renaming and assignment change metadata and deliberately keep note paths stable; physical folder relocation is not implemented.
 
-Click a graph node or sidebar note to open the resizable editor. Switch between Edit, Split, and Read; split becomes vertical in narrow editors. Save explicitly with **Ctrl+S**. Note navigation, location/vault switching, and window closing protect unsaved edits. Search dims nonmatching nodes. Drag nodes to pin them, pan, zoom, fit, or reset the camera. Canvas labels use measured screen-space bounds, prioritize interaction and search, avoid nodes/other labels/floating controls, and truncate long titles. Camera and positions survive ordinary index updates during the session; they are not persisted across restarts. The charcoal interface uses translucent materials with graph-derived colour diffusion, a calm integrated reading surface, reduced-motion handling, and an opaque fallback when backdrop blur is unavailable.
+Click a graph node or sidebar note to open the resizable editor. Switch between Edit, Split, and Read; split becomes vertical in narrow editors. Save explicitly with **Ctrl+S**. Note navigation, location/vault switching, and window closing protect unsaved edits. Search dims nonmatching nodes. Drag nodes to pin them, pan, zoom, fit, or reset the camera. Canvas labels use measured screen-space bounds, prioritize interaction and search, avoid nodes/other labels/floating controls, and truncate long titles. Camera and positions survive ordinary index updates during the session; they are not persisted across restarts. The near-black graph uses angular illuminated junctions, fine curved relationships and sparse labels. Panels use 24–32 px spacing where the viewport permits, with restrained smoked glass on floating controls and reduced-motion support.
 
-Only Markdown files are study data. Rust recursively indexes them in the background. `.git`, `node_modules`, `target`, `dist`, `build`, `.synapse`, `.obsidian`, and `.trash` are ignored. Notes are identified by normalized vault-relative paths, including their `.md` extension, rather than titles. Existing notes are never reorganized automatically.
+Markdown notes remain ordinary files. Quizzes, attempts, reminder definitions and generated-card provenance live separately in versioned `.synapse/study.json`. Rust indexes Markdown in the background. `.git`, `node_modules`, `target`, `dist`, `build`, `.synapse`, `.obsidian`, and `.trash` are ignored. Notes are identified by normalized vault-relative paths, including their `.md` extension, rather than titles. Existing notes are never reorganized automatically.
 
 On first open, legacy notes are adopted into a default Neuron without moving or rewriting them. Recognized YAML frontmatter takes precedence over top-level preset folders; other top-level folders become custom subjects, and root/unassigned notes remain in General. Saved migration membership is stable. Managed subject roots take precedence over frontmatter classification, so duplicate preset subjects cannot steal one another's notes. Preset aliases are case insensitive; spaces and underscores normalize to hyphens. See [migration and package details](MIGRATION.md).
 
@@ -72,13 +72,37 @@ Frontmatter is parsed as YAML, never with regex. Ordinary saves preserve the exa
 
 ## Typography, motion and sound
 
-Version 0.3 uses locally bundled Manrope headings and Geist navigation, labels and reading text. Extended Latin assets and system fallbacks cover phonetic characters; KaTeX keeps its specialised fonts. Font licenses are included in the embedded application assets under `licenses/`. Read mode suppresses a matching leading Markdown H1 without changing the note.
+Version 0.4.0 uses locally bundled Manrope headings and Geist navigation, labels and reading text. Extended Latin assets and system fallbacks cover phonetic characters; KaTeX keeps its specialised fonts. Font licenses are embedded under `licenses/`. Read mode suppresses a matching leading Markdown H1 without changing the note.
 
-Subject clusters use persistent IDs and saved colours. Version 0.3.1 adds crisp bright cores, subject-coloured bodies, cached halos, clearer intra-subject connections and light fields following actual cluster bounds. Empty subjects reserve no graph space. A shared critically damped controller moves the drawer, camera and illumination, retains velocity when interrupted, and restores overview framing. Labels measure the loaded font, stay anchored to nodes, and move over the node when a side change is necessary. Fit includes every note; Reset bounds large-cluster outliers while retaining small subjects. Ordinary body edits retain graph objects and framing; simulation settling no longer pins all nodes. Explicit node drags remain pinned for the session.
+Subject clusters use persistent IDs and saved colours. Leaf, connected and hub junctions reflect actual connectivity, with compact emission and a pale selected frame. Empty subjects reserve no graph space. Overview labels prioritise important hubs and interaction; selected neighbourhoods reveal more context. Fit includes every note; Reset bounds large-cluster outliers while retaining small subjects. Ordinary body edits retain graph objects and framing; explicit drags pin nodes for the session.
 
-Preferences contains Sound and Volume, saved in the application's WebView storage separately from vaults and exported subjects. Sound is generated locally from short noise excitations and damped resonators. Direct actions, successful ratings, published imports and visible linked-note arrivals produce bounded feedback. Typing, hovering, startup and background indexing stay silent. Native focus loss, disabling sound and changing vaults cancel queued feedback. Reduced-motion changes apply immediately at runtime and leave the sound preference independent.
+One critically damped controller moves the drawer, camera and logarithmic zoom together. It measures the uncovered canvas, selects zoom from the neighbourhood, retains velocity when interrupted, and restores the exact prior overview. Narrow currents follow actual curved relationships on selection, WikiLink navigation, saved connections and review completion. Travel time depends on projected length; sound arrivals share the same event plan. The idle graph stops rendering. Reduced motion snaps spatial changes and suppresses travelling effects.
+
+Preferences contains persistent Sound and Volume. One lazy Web Audio instrument produces dry contact, low-mid body and a short damped metallic edge. It bounds polyphony to six voices, uses compression/limiting, suppresses repeated events and cancels pending feedback on native focus loss and scope changes. Typing, hover, startup and indexing stay silent. No reference WAV or `.codex` files are needed by the installed application.
 
 See [interaction architecture](INTERACTION.md) and [executed validation](VALIDATION.md) for timing, lifecycle and test boundaries.
+
+## Study creation and optional OpenAI
+
+**Create** opens one drawer with Quiz, Flashcards and Reminder tabs. Work manually or explicitly generate a draft. Select the current note, notes from the current scope, or a subject; inspect the exact outgoing source text before generation. Limits are 20 source notes, 16,000 UTF-8 bytes per note, 60,000 total source bytes and 20 generated items. Excluded notes are listed; attachments and unrelated subjects are never uploaded automatically. Reminder interpretation sends the selected target references and request, not note bodies.
+
+Preferences accepts an API key transiently, clears the input after submission, and stores it in Windows Credential Manager. Rust performs network requests; the stored key is never returned to React or written to vaults, exports, ordinary settings or logs. Adding, replacing, removing and testing the key are explicit actions. API usage is billed separately from ChatGPT subscriptions.
+
+The implementation uses the official [Responses API](https://developers.openai.com/api/docs/quickstart) and [strict structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs). Supported choices are [GPT-5.4 mini](https://developers.openai.com/api/docs/models/gpt-5.4-mini) (default) and [GPT-5.4](https://developers.openai.com/api/docs/models/gpt-5.4). There is no automatic model substitution or retry. The configurable output limit is 512–16,384 tokens; the explicit connection test sends no notes and allows 128 output tokens. Local returned-token counters are informational, not a billing balance; interrupted requests can still incur usage.
+
+Rust validates the strict response shape, IDs, counts, lengths, answer indexes, source membership and current source revisions before publication. Notes and generated text are untrusted content, with no model tools or command execution. Refusals, incomplete output, invalid responses, credentials, model access, quota, rate limits, network errors and timeouts produce actionable errors. Navigating to a different scope or vault cancels/discards pending output. Generated drafts remain unsaved until explicitly saved and must be checked for accuracy; they are not official examination material.
+
+- **Quizzes:** edit questions, choices, correct answers, explanations and source references; save, take and view results offline. Multiple choice is marked deterministically in Rust. Short answers show guidance and require self-assessment. Attempts have stable IDs and never affect spaced-repetition history.
+- **Flashcards:** edit, remove and select cards, then choose a destination subject and a new or existing non-source note. Saves use canonical `Q:`/`A:` Markdown, revision checks, source WikiLinks and an idempotent recovery marker. The original source notes are protected. Previewing and saving do not create review history.
+- **Reminders:** edit the resolved title, local date/time, IANA timezone, note/subject target and optional daily/weekly repeat. Australia/Sydney is the initial timezone. Ambiguous times require an explicit choice; nonexistent DST times and past initial dates must be corrected before save. No network request is needed at delivery.
+
+## Reminder lifecycle
+
+Reminder definitions and pending catch-up state live in the vault; device configuration registers which local vaults this installation should check. While the process is running, a two-second local timer checks current UTC time, including after sleep/resume or wall-clock changes. A durable delivery claim precedes a Windows toast to prevent duplicates. A crash between claiming and showing can therefore leave a catch-up entry without a toast. Daily/weekly repetitions retain their local wall time; a DST gap advances to the first valid minute, and a fold uses the selected occurrence (earlier by default for recurrence).
+
+The Study library supports edit, cancel, dismiss and ten-minute snooze. Missed occurrences are collected in a concise catch-up list rather than replayed as a burst of toasts. Imported reminders are paused until edited and saved with a future time. Native notifications require the installed Windows application; see [Tauri's Windows notification requirements](https://v2.tauri.app/plugin/notification/).
+
+**Keep reminders running when the window closes** hides the window in the tray. **Quit Synapse** fully exits, so reminders cannot run until the next launch. Optional **Start Synapse when I sign in to Windows** is off by default; when enabled with background mode, launch stays in the tray. These settings are device-specific and visible in Preferences. No OS scheduling service delivers after full exit. An unavailable/moved vault must be reopened at its current location.
 
 ## WikiLinks
 
@@ -153,6 +177,11 @@ src-tauri/src/
   organization.rs         Stable IDs, legacy adoption, location and subject ownership
   packages.rs             Portable archives, references and staged import plans
   transactions.rs         Journaled publication and interrupted-import recovery
+  ai.rs, device.rs         Bounded Responses requests and OS-protected credentials
+  study.rs                Versioned local quizzes, attempts and reminders
+  study_commands.rs       Draft publication, local marking and canonical card saves
+  reminders.rs            Durable local scheduling and native notifications
+  study_transfer.rs       Portable study content and identity remapping
   errors.rs, tests.rs      Typed errors and regression coverage
 fixtures/demo-vault/       Synthetic study notes only
 .github/workflows/         Windows checks and desktop packaging
@@ -171,3 +200,9 @@ node scripts/release-verify.mjs
 ```
 
 Run the two commands in order: the first creates a fresh fixture, and the second extends that fixture. The update harness covers hierarchy creation, location scoping, editing/conflicts, independent review queues and responsive screenshots. The release harness checks offline operation, missing-note creation, stable graph rendering, focus restoration, empty states and emulated display densities. `transfer-desktop.mjs` runs against the development desktop: it substitutes the native picker module's responses only, and exercises the real Rust export/import/validation/persistence commands. Native picker rendering is inspected separately. The older `desktop-smoke`, `desktop-extended` and `desktop-offline` scripts document the v0.1 baseline and use selectors from that interface. Close test instances and remove `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` before a normal launch. The CI workflow runs unit/static checks and builds the installer; desktop integration runs locally.
+
+### Deterministic API verification
+
+`node scripts/mock-study-api.mjs` serves synthetic Responses-shaped results on loopback port 4318. Development builds require **both** debug assertions and the `test-api` Cargo feature to use `SYNAPSE_TEST_API_URL=http://127.0.0.1:4318/v1/responses`. Set `SYNAPSE_TEST_DEVICE_DIR` to a temporary directory. This path uses a separate credential service and a dummy transport key, and displays a local-mock label. Release builds compile out the override. `node scripts/study-desktop.mjs` exercises real UI, Rust transport, validation and persistence. `--record` additionally captures original compositor frames and live app audio; keep the native window focused. Reports and media remain under ignored `.local/`.
+
+`cargo test --manifest-path src-tauri/Cargo.toml configured_api_integration_check -- --ignored --nocapture` explicitly runs a bounded live check only if the normal credential entry exists. A missing credential reports live verification as pending. Automated mock success is not evidence of a successful live API request.

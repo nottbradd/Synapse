@@ -1,5 +1,5 @@
 import { project, type Frame, type Viewport } from "./motion";
-import type { SceneNode } from "./topology";
+import { nodeScreenRadius, type SceneNode } from "./topology";
 
 const rgb = (color: string) =>
   [1, 3, 5].map((i) => Number.parseInt(color.slice(i, i + 2), 16));
@@ -14,28 +14,21 @@ export function lightColor(color: string, alpha: number) {
 // Small cached textures, never a per-frame full-canvas blur or ambient loop.
 export class GraphLight {
   private textures = new Map<string, HTMLCanvasElement>();
-  texture(color: string, field = false) {
-    const key = `${color}:${field}`;
+  texture(color: string) {
+    const key = color;
     let canvas = this.textures.get(key);
     if (canvas) return canvas;
     canvas = document.createElement("canvas");
     canvas.width = canvas.height = 128;
     const ctx = canvas.getContext("2d")!,
       g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-    for (const [at, alpha] of field
-      ? [
-          [0, 0.21],
-          [0.25, 0.14],
-          [0.6, 0.05],
-          [1, 0],
-        ]
-      : [
-          [0, 0.7],
-          [0.18, 0.4],
-          [0.4, 0.14],
-          [0.7, 0.025],
-          [1, 0],
-        ])
+    for (const [at, alpha] of [
+      [0, 0.7],
+      [0.18, 0.4],
+      [0.4, 0.14],
+      [0.7, 0.025],
+      [1, 0],
+    ])
       g.addColorStop(at, lightColor(color, alpha));
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 128, 128);
@@ -66,34 +59,16 @@ export class GraphLight {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, view.width, view.height);
     ctx.globalCompositeOperation = "lighter";
-    const groups = new Map<string, SceneNode[]>();
-    for (const n of nodes) {
-      if (!groups.has(n.subject_id)) groups.set(n.subject_id, []);
-      groups.get(n.subject_id)!.push(n);
-    }
-    for (const [id, group] of groups) {
-      const xs = group.map((n) => n.x ?? 0).sort((a, b) => a - b),
-        ys = group.map((n) => n.y ?? 0).sort((a, b) => a - b);
-      const trim = group.length > 12 ? Math.floor(group.length * 0.05) : 0;
-      const minX = xs[trim],
-        maxX = xs[xs.length - 1 - trim],
-        minY = ys[trim],
-        maxY = ys[ys.length - 1 - trim];
-      const centre = project(
-        { x: (minX + maxX) / 2, y: (minY + maxY) / 2 },
-        frame,
-        view,
-      );
-      const spread = Math.min(230, 170 + 40 * frame.zoom);
-      const rx = Math.min(520, ((maxX - minX) * frame.zoom) / 2 + spread),
-        ry = Math.min(460, ((maxY - minY) * frame.zoom) / 2 + spread);
-      ctx.globalAlpha = 0.95 * density;
+    for (const node of nodes) {
+      const centre = project(node, frame, view),
+        radius = nodeScreenRadius(node, frame.zoom) * 1.8;
+      ctx.globalAlpha = 0.38 * density;
       ctx.drawImage(
-        this.texture(colors.get(id) ?? "#95a6b8", true),
-        centre.x - rx,
-        centre.y - ry,
-        rx * 2,
-        ry * 2,
+        this.texture(colors.get(node.subject_id) ?? "#95a6b8"),
+        centre.x - radius,
+        centre.y - radius,
+        radius * 2,
+        radius * 2,
       );
     }
     ctx.globalAlpha = 1;

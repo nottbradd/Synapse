@@ -28,11 +28,15 @@ export default function Sidebar({
   onAction,
   onNewNote,
   onPreferences,
+  onStudy,
+  remindersReady,
 }: {
   w: Workspace;
   onAction: (a: Action) => void;
   onNewNote: (subject?: string) => void;
   onPreferences: () => void;
+  onStudy: (view: "create" | "library") => void;
+  remindersReady: number;
 }) {
   const {
     vault,
@@ -162,6 +166,20 @@ export default function Sidebar({
         </header>
         {collapsed ? (
           <div className="rail">
+            <button
+              title="Create study material"
+              aria-label="Create study material"
+              onClick={() => onStudy("create")}
+            >
+              <Plus size={18} />
+            </button>
+            <button
+              title="Study library"
+              aria-label="Study library"
+              onClick={() => onStudy("library")}
+            >
+              <BookOpen size={18} />
+            </button>
             <button
               title="Preferences"
               aria-label="Preferences"
@@ -367,6 +385,17 @@ export default function Sidebar({
               </button>
             </div>
             <footer className="sidebar-footer">
+              <div className="study-entries">
+                <button onClick={() => onStudy("create")}>
+                  <Plus size={17} />
+                  Create
+                </button>
+                <button onClick={() => onStudy("library")}>
+                  <BookOpen size={17} />
+                  Study library
+                  {remindersReady > 0 && <span>{remindersReady}</span>}
+                </button>
+              </div>
               <button
                 title="Preferences"
                 aria-label="Preferences"

@@ -3,9 +3,10 @@ import { preferences } from "./preferences";
 import type { SignalPacket } from "./signals";
 export type ActionIntent =
   | {
-      kind: "select" | "follow";
+      kind: "select" | "follow" | "connect";
       node: string;
       source?: string;
+      targets?: string[];
       subject?: string;
     }
   | {
@@ -16,8 +17,10 @@ export type ActionIntent =
         | "remembered"
         | "forgot"
         | "complete"
+        | "draft"
         | "error";
       subject?: string;
+      node?: string;
     }
   | { kind: "import"; nodes: string[]; subject: string };
 export interface InteractionEvent {
@@ -107,25 +110,31 @@ export class Feedback {
       kind,
       event.at,
       subject,
-      kind === "import" ? 0.45 : kind === "remembered" ? 0.5 : 0.8,
+      kind === "forgot" || kind === "error"
+        ? 0.52
+        : kind === "import" || kind === "draft"
+          ? 0.55
+          : kind === "remembered"
+            ? 0.65
+            : 0.8,
     );
     const offsets =
       kind === "remembered"
-        ? [0.09]
+        ? [0.074]
         : kind === "focus" || kind === "leave"
-          ? [0.07, 0.145]
+          ? [0.062]
           : kind === "import"
-            ? [0.071, 0.164, 0.24]
-            : kind === "complete"
-              ? [0.08, 0.17, 0.285]
+            ? [0.085, 0.17]
+            : kind === "complete" || kind === "draft"
+              ? [0.085, 0.17]
               : [];
     offsets.forEach((s, i) =>
       this.contact(
         `${event.id}-${i}`,
-        kind,
+        i === 1 ? "close" : "arrival",
         event.at + s * 1000,
         subject,
-        kind === "complete" ? 0.32 : kind === "import" ? 0.3 : 0.38,
+        kind === "complete" ? 0.48 : 0.42,
         kind === "leave" ? 1 - i * 0.06 : 1 + i * 0.035,
       ),
     );

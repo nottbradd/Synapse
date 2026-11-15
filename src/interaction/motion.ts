@@ -1,5 +1,5 @@
 export const MOTION = {
-  omega: 20,
+  omega: 16.5,
   positionEpsilon: 0.015,
   velocityEpsilon: 0.04,
   labelTau: 0.09,
@@ -10,7 +10,7 @@ export const MOTION = {
   ringIn: 150,
   ringOut: 200,
   titleDuration: 180,
-  signalSpeed: 180,
+  signalSpeed: 560,
   bloomDuration: 120,
 } as const;
 
@@ -47,6 +47,8 @@ export interface Viewport {
   width: number;
   height: number;
   left: number;
+  top?: number;
+  bottom?: number;
 }
 export interface Bounds {
   x: number;
@@ -57,9 +59,9 @@ export interface Bounds {
 export function usable(v: Viewport, drawer: number): Bounds {
   return {
     x: v.left + 24,
-    y: 92,
+    y: v.top ?? 92,
     width: Math.max(80, v.width - v.left - drawer - 48),
-    height: Math.max(80, v.height - 180),
+    height: Math.max(80, v.height - (v.top ?? 92) - (v.bottom ?? 88)),
   };
 }
 export function project(

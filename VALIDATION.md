@@ -1,85 +1,59 @@
-# Synapse 0.3.1 validation
+# Synapse 0.4.0 validation
 
-Executed on Windows x64 on 15 November 2026 (Australia/Sydney), using synthetic temporary vaults. Personal study files were not used. Previous validation records remain in Git history. This refinement extends presentation and preview APIs without changing stored identities, history schemas or scheduling rules.
+Executed on Windows x64 on 15–16 November 2026 (Australia/Sydney). All study content used for verification was synthetic and kept in temporary vaults. Personal study notes and credentials were not used. Previous release evidence remains in Git history.
 
 ## Automated checks
 
-| Check                                           | Result            |
-| ----------------------------------------------- | ----------------- |
-| TypeScript typecheck and ESLint                 | Passed            |
-| Frontend unit tests                             | 46 passed         |
-| Rust unit tests                                 | 21 passed         |
-| Rust formatting and Clippy with warnings denied | Passed            |
-| npm audit                                       | 0 vulnerabilities |
-| Production Vite/Rust/NSIS build                 | Passed            |
+| Check                                       | Result                                                             |
+| ------------------------------------------- | ------------------------------------------------------------------ |
+| TypeScript typecheck and ESLint             | Passed                                                             |
+| Frontend tests                              | 46 passed across 5 files                                           |
+| Rust tests, locked dependencies             | 40 passed; 1 explicit live test normally ignored                   |
+| Rust formatting and Clippy, warnings denied | Passed                                                             |
+| npm audit, all dependencies                 | 0 vulnerabilities                                                  |
+| Production Vite, Rust and NSIS build        | Passed                                                             |
+| Windows Credential Manager                  | Separate temporary credential entry roundtrip/removal passed       |
+| Explicit bounded live API check             | Executed; reported pending because no configured credential exists |
 
-New coverage checks canonical recall recognition and UTF-16 source ranges, CRLF/BOM/emoji input, original content hashes, duplicate occurrences, Markdown containers and adjacent prose, nonrecursive answer rendering, and exact agreement between all four previews and committed scheduling results at a fixed time for new and mature cards. Preview tests verify unchanged history bytes, no creation of missing history, no legacy migration and no replacement of malformed history. Graph tests cover bounded CSS-pixel radii, occupied-subject composition, outlier fitting and stable positions across scope changes. Existing motion, label, audio, WikiLink, containment, transfer, recovery and identity tests remain.
+New Rust coverage checks strict output shape, required nullable fields, types, item counts, source membership, option indexes, refusal/incomplete output, malformed JSON, response-size limits, HTTP quota errors, cancellation, timeout and redaction. Requests use deterministic local HTTP responses. Source preview tests verify selected bodies only and visible whole-note exclusions. Draft origins and receipts cover stale scope, cancellation and duplicate publication.
 
-The production bundle retains a Vite size advisory: approximately 1.51 MB JavaScript before compression, 491 KB compressed. Fonts and their OFL licenses remain embedded locally. The executable and installer are unsigned.
+Persistence tests cover deterministic offline multiple-choice scoring and short-answer self-assessment; canonical flashcards; protected source notes; external-change conflicts; interrupted-save recovery; stable source mappings; unchanged review-history bytes; corrupt metadata preservation; study-bearing package roundtrips; external references; fresh imported identities; paused imported reminders; and opt-in quiz-attempt transfer. Timezone tests cover Sydney DST gaps/folds, future-date validation, local daily/weekly recurrence, missed occurrence skipping, clock rollback and durable duplicate suppression.
+
+Existing tests retain containment/junction protection, hostile archives, journal recovery, subject identity and legacy schedule migration, canonical recall recognition, read-only scheduler previews, graph framing/retargeting/reduced motion, label placement, bounded audio reservations and cancellation.
 
 ## Real desktop checks
 
-The Tauri development executable and packaged 0.3.1 executable were exercised through their actual WebViews and Rust IPC. The packaged URL was `http://tauri.localhost/`. Integration fixtures include 97 notes, multiple Neurons, duplicate Physics subjects with independent progress, a custom subject and a 90-note dense cluster. The final production build also supplied the eight after screenshots and the recording.
+The development and installed production executables were exercised through their actual WebView2 renderer and Rust IPC. The installed URL was `http://tauri.localhost/`; no browser-only mock frontend was used. The installed executable differs from the standalone release executable only in Tauri's three-byte bundle marker (`UNK` versus `NSS`). Windows reports product version 0.4.0.
 
-- Creation, Neuron/subject scoping, Read/Split/Edit, safe save, dirty-navigation and window-close guards passed. External-change conflict detection and explicit Keep my edits recovery passed.
-- Read-mode recall passed Space/Enter interaction, expanded state and keyboard focus, initial answer hiding, Markdown/WikiLink/KaTeX answers, reset on note/card changes and retention on an ordinary refresh. Neither reveal nor preview changed source/history bytes or created history. Review retained its separate reveal.
-- Review previews displayed actual new-card intervals (1 min, 12 hr, 1 day, 4 days), refreshed after a mature-history update and matched a subsequent 25-day Good commit. Rating before reveal was blocked; repeated rapid rating input committed once.
-- KaTeX, WikiLinks, explicit missing-note creation, offline reload, reading, editing, saving and reviews passed in the packaged executable.
-- Subject review isolation, hierarchy edits, responsive layouts and transfer regression checks passed. Transfer tests used the real Rust package/folder/attachment/conflict/history/validation paths; only native chooser responses were substituted in that automated pass. Rust tests retain archive, path and interrupted-publication checks.
-- Modal Escape/focus restoration, empty states, reduced motion and the actual opaque fallback material passed. Successful desktop regression runs recorded no JavaScript exceptions or console errors.
+- `scripts/study-desktop.mjs`: real source selection, local mock HTTP generation, quiz editing/save, offline quiz taking and deterministic scoring, short-answer self-assessment, flashcard editing/removal/canonical saving, unchanged review history, reminder interpretation/preview/save, actionable rate-limit error, cancellation and stale-scope rejection. No JavaScript errors.
+- `scripts/interaction-desktop.mjs`: exact selected-node centring (zero x/y error), reverse/retarget stability, body-only save without camera/position changes, idle renderer pause, runtime reduced motion, node-relative label side changes with a pinned camera, six-voice admission, complete cleanup, silence after cancellation/mute, and persisted sound preferences. Default rendered peak 0.01314; dense case 0.03960; no remaining voices/reservations.
+- `scripts/recall-desktop.mjs`: actual parser/scheduler, keyboard recall reveal, Markdown/WikiLink/KaTeX answers, note/revision reset rules, unchanged history for previews and actual rating persistence.
+- `scripts/transfer-desktop.mjs`: actual Rust import/export/archive/filesystem operations passed, with only native chooser responses substituted. The pre-existing native file-dialog implementation is unchanged.
+- Packaged release regression: offline reload/edit/review, dirty window-close guard, missing WikiLink creation, stable Canvas after ordinary edits, modal focus restoration, empty state, and DPR 1.5/2 backing-store checks passed with no overflow or JavaScript errors. Repeated-run fixture note/card names were made unique to avoid existing synthetic content.
+- Installed reminder test: manual preview/save; close-to-tray kept the process running; the due occurrence was claimed once; Windows `ToastNotificationManager.History` contains the real Synapse toast titled “Revise conservation of momentum”. Snooze, edit, cancellation and stable reminder identity passed.
+- Full Quit exited the process. Launching with background enabled stayed hidden; a second normal launch reopened the same instance. Three controlled overdue reminders recovered once in the catch-up view, and native toast history remained at one entry. Dismissal worked. Startup registration was enabled, read back and restored to off. Background mode was restored to off.
 
-Both production Canvas layers were byte-identical after an ordinary body-only filesystem update once settled. Development instrumentation separately verified unchanged node coordinates and camera frames. Scope-only changes retained settled coordinates and restored the overview exactly; explicit dragging still updates node positions.
+The Windows automation helper does not expose notification banners. Native delivery is verified in Windows' own notification history, but no native-banner screenshot or footage is claimed. User visual confirmation was requested separately. Real sleep/wake and multi-monitor DPI transitions were not physically performed; timer restart, clock arithmetic and DST behaviour have deterministic coverage.
 
-Native folder selection was exercised in the actual Windows dialog and restored genuine native focus before recording. The Open/Save/import/export native dialog checks from the preceding 0.3.0 pass remain documented in Git history; this pass does not represent the automated chooser substitutions as fresh native-dialog coverage. No security setting or ACL was changed.
+## Appearance and recordings
 
-## Motion and audio
+The approved angular reference and supplied sound synthesis/audition assets were inspected before implementation. The actual app now has angular junctions, tight emission, curved relationships, fewer overview labels, separated subject silhouettes and spacious matte panels. The small-window review found and corrected an over-tight fit when opening Create: it now retains the readable graph scale instead of compressing the entire graph into the uncovered strip.
 
-The selected node matched the measured uncovered centre with 0 px horizontal and vertical error at the tested 1600 px layout. Rapid reversal settled without later drift. Runtime reduced motion snapped to the destination. A settled one-second interval recorded zero Canvas draw calls. The light and geometry layers share the same transform, DPR and animation clock.
+Matched 0.3.1 before screenshots are in `.local/cyber-before/`. Packaged after screenshots in `.local/cyber-after/` cover the 32-note multi-subject overview, note drawer, subject focus, review, 90-note dense vault, creation modes, API/reminder settings, small windows, reduced motion, opaque fallback, offline reading and reminder catch-up. `.local/cyber-study/` contains clearly labelled mocked quiz/card drafts, quiz taking/results, reminder preview and the rate-limit state. Renderer DPR 1.5 and 2 are separately checked with native-size Canvas backing stores; these are emulated renderer-density checks, not a claim of testing physical monitor changes.
 
-Two complementary label checks passed. With placement constraints controlled, the actual development scene changed targets 0 → pi → 0 while its camera stayed fixed. Separately, a real pointer drag moved a selected node from (692, 502) to (1000, 340), producing a visible right-to-left transition with an unchanged camera and no placement override. The packaged recording uses a longer drag into the clear upper area at (1000, 180), showing the final label on the left. Unit tests also inspect intermediate upper-arc clearance, hysteresis, cooldown and node-relative offsets.
+Actual application recordings with live app audio:
 
-The sound implementation was retained. OfflineAudioContext rendered the actual synth at 48 kHz: default contact peak 0.028413 (about -30.9 dBFS), maximum-volume six-voice mix 0.093039 (about -20.6 dBFS). Thirty simultaneous requests admitted six voices. Muted/cancelled renders were silent, with zero remaining sources and reservations. Preference reload, native-focus gating, cancellation and disposal remain covered. These measurements do not establish perceived timbre.
+- `.local/Synapse-0.4.0-study-mocked.mp4`: 30.308 s; 901 original compositor frames, 866 consecutive unique frames. Clearly labelled local-mock generation/editing, saved quiz use, card saving, reminder drafting, errors/cancellation, click-to-focus, retargeting and return. Changed transition cadence measured 79.7–92.8 fps, with median gaps about 12.1 ms and p95 up to 36.4 ms.
+- `.local/Synapse-0.4.0-installed.mp4`: 9.582 s; 457 original compositor frames, 452 consecutive unique frames. Installed-app focus, interrupted retarget, exact-return interaction and manual reminder preview/save. Changed transition cadence measured 71.9–94.0 fps, median about 12.1 ms and p95 up to 24.3 ms.
 
-## Visual comparison
+Every delivered motion frame comes from the real WebView compositor. MP4 decoding preserved all source frames; maximum timestamp differences were 0.94 ms and 0.72 ms respectively. Variable frame timing is retained, with no interpolated frames. Live AudioContext output is recorded without a microphone; timestamp gaps are filled with silence during muxing, not invented cues. The study recording's captured peak was approximately -27.7 dBFS at the configured volume. A nominal 60 fps target is not presented as a constant frame rate; idle periods are intentionally still and individual frames can exceed 16.7 ms.
 
-The approved luminous graph mockup, later typography screenshot, motion reference and previous application recording were inspected. Actual screenshots were compared directly during iteration of node optics, edge contrast, cluster spacing, fitting, material tint and scene-derived light. The final overview has distinct bright cores and coloured connections; cluster light continues behind glass while interactive geometry is clipped away from obstructed areas. Reading text remains opaque and crisp.
+Subjective listening quality is not asserted. The implementation ports individual dry contacts and damped resonances from the supplied reference, and its levels/lifecycle have measured validation. Native Windows toast banners are outside the WebView capture and are not fabricated in the films.
 
-The before and after passes use the same synthetic fixture identities and viewport. The overview contains 32 notes across five occupied subjects. The separate dense view contains 90 notes. Eight pairs are retained under `.local/refinement-before/` and `.local/refinement-after/`:
+## Delivery boundaries
 
-- `overview.png`: small multi-subject overview.
-- `drawer.png`: same graph with note drawer and recall.
-- `subject.png`: focused subject.
-- `review.png`: review dialog and scheduler intervals.
-- `dense.png`: dense cluster.
-- `small.png`: 900 × 600 window.
-- `reduced-motion.png`: reduced spatial motion.
-- `opaque-fallback.png`: solid fallback material.
+The production executable is `src-tauri/target/release/synapse.exe`; the NSIS installer is `src-tauri/target/release/bundle/nsis/Synapse_0.4.0_x64-setup.exe`. The local installation is `%LOCALAPPDATA%/Synapse/synapse.exe`. Both executable and installer are unsigned. The Vite bundle warning remains: approximately 1.55 MB JavaScript before compression, 501 KB compressed. Fonts, licenses, graph and sound code are bundled; no `.codex` runtime dependency exists.
 
-All other views use 1600 × 1000. `.local/Synapse-0.3.1-comparison.html` embeds the 16 original screenshots without image editing; all images were loaded and checked in Edge. The native Windows display remained at 100%. WebView density emulation at 1000 × 700 and DPR 1.5/2 allocated 1500/2000-pixel backing widths for both Canvas layers, without horizontal overflow. This is not an actual Windows DPI switch or multi-monitor test.
+Live OpenAI generation remains pending until a key is configured. Automated and filmed generation is explicitly mocked. Reminders require Synapse to be running; full exit has no OS-backed scheduling service. A crash after a durable delivery claim but before the toast can leave a catch-up entry without a banner. File writes remain optimistic against other editors/cloud sync, rather than providing cross-process locking. Generated study material requires user review for correctness.
 
-## Actual application recording
-
-`.local/Synapse-0.3.1-demo.mp4` is 17.78 seconds of the final packaged executable, 1600 × 1000 H.264/AAC. It includes overview, drawer opening/closing, keyboard recall reveal, a real label-side-change drag, subject focus/return and successful review grading. The app was natively focused. Audio was recorded from its final live Web Audio output without microphone/desktop capture or a replacement soundtrack. Decoded audio peak was -24.8 dBFS (mean -57.4 dBFS including silence), with no clipping.
-
-The capture uses every delivered compositor frame (`everyNthFrame: 1`), not every third frame. Its source timestamps and image hashes were checked; 841 source frames contained 827 consecutive distinct images and 14 identical consecutive images. Source timestamps were strictly increasing. The MP4 decodes to all 841 source frames, with maximum timestamp difference 0.88 ms from the original capture after millisecond quantisation. Edge decoded and sought the file successfully. No interpolated motion frames were generated.
-
-| Recorded action                    | Source frames/s | Distinct frames/s | Median gap | 95th-percentile gap |
-| ---------------------------------- | --------------: | ----------------: | ---------: | ------------------: |
-| Drawer opening                     |           85.74 |             85.74 |   12.12 ms |            24.19 ms |
-| Real pointer drag and label change |           74.24 |             73.68 |   12.14 ms |            24.26 ms |
-| Drawer closing                     |           94.53 |             94.53 |   12.11 ms |            18.21 ms |
-| Subject focus                      |           99.65 |             99.65 |   12.09 ms |            12.18 ms |
-| Subject return                     |           97.34 |             97.34 |   12.08 ms |            12.26 ms |
-
-These are measured variable capture rates during the listed action windows, not a claim of perfectly locked 60 fps. Some intervals exceed 16.7 ms. Static recall reveal delivered one frame and completion delivered four; sparse static updates and idle pauses are expected. Whole-video average or container metadata does not measure transition fluidity. Raw timestamps, action windows and cadence are retained in `.local/refinement-frame-timestamps.json` and `.local/refinement-capture-report.json`.
-
-Subjective listening remains unverified: the available execution environment cannot perform a listening comparison. The actual audio was captured, decoded and level-checked for user playback, with the approved synth unchanged. Multi-hour usage, every keyboard path and actual multi-monitor DPI transitions remain outside this focused pass.
-
-## Build artifacts
-
-- Executable: `src-tauri/target/release/synapse.exe` — 13,817,344 bytes.
-- Installer: `src-tauri/target/release/bundle/nsis/Synapse_0.3.1_x64-setup.exe` — 4,376,754 bytes.
-- Executable SHA-256: `1eaae67392b0d078e37259e4fc117ca8ddbaab914c13c60832814d86631d9e68`.
-- Installer SHA-256: `6ca63a5df5c2736d498cc5139be1c83a8ad4f26f634f9e5b28264e441ac6b0a8`.
-
-Artifacts and synthetic evidence remain local and ignored by Git. GitHub remains private. Hosted CI status is checked against the delivered commit separately from local validation.
+The GitHub repository remains private. Validation media and synthetic vaults remain local and ignored by Git; they are not uploaded as repository content.

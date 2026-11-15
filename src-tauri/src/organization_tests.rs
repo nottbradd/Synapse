@@ -425,6 +425,8 @@ fn publication_recovery_is_idempotent_and_preserves_external_edits() {
         organization_after: org,
         history_before: None,
         history_after: serde_json::to_string(&s.history).unwrap(),
+        study_before: None,
+        study_after: None,
     };
     write(
         &meta,

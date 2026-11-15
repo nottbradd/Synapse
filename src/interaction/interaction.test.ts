@@ -267,8 +267,10 @@ describe("planned edge signals", () => {
       new Map(),
     );
     expect(p).toHaveLength(2);
-    expect(p.map((p) => p.duration)).toEqual([500, 1500]);
-    expect(p.map((p) => p.arrival)).toEqual([600, 1600]);
+    expect(p[0].duration).toBeCloseTo((90 / 560) * 1000);
+    expect(p[1].duration).toBeGreaterThan((270 / 560) * 1000);
+    expect(p[1].duration).toBeLessThan(510);
+    expect(p.map((p) => p.start)).toEqual([100, 118]);
     expect(p.every((p) => p.arrival === p.start + p.duration)).toBe(true);
   });
   it("cancels removed or hidden targets without changing other arrival timestamps", () => {
@@ -286,7 +288,7 @@ describe("planned edge signals", () => {
       );
     t.replace(p);
     expect(t.prune(300, new Set(["a", "c"]))).toEqual(["op:b"]);
-    expect(t.packets[0].arrival).toBe(1600);
+    expect(t.packets[0].arrival).toBe(p[1].arrival);
     expect(t.cancel()).toEqual(["op:c"]);
     expect(t.packets).toEqual([]);
   });
@@ -467,11 +469,11 @@ describe("font and data stability", () => {
     const leaf = { neighbors: 0 } as SceneNode,
       hub = { neighbors: 10000 } as SceneNode;
     for (const zoom of [0.1, 0.4, 1, 2, 6]) {
-      expect(nodeScreenRadius(leaf, zoom)).toBeGreaterThan(3.4);
+      expect(nodeScreenRadius(leaf, zoom)).toBeGreaterThan(2.9);
       expect(nodeScreenRadius(hub, zoom)).toBeGreaterThan(
         nodeScreenRadius(leaf, zoom),
       );
-      expect(nodeScreenRadius(hub, zoom)).toBeLessThan(11);
+      expect(nodeScreenRadius(hub, zoom)).toBeLessThan(12);
     }
   });
   it("waits for fonts and invalidates the old Canvas measurements on completion", async () => {

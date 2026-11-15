@@ -14,6 +14,8 @@ export type Cue =
   | "remembered"
   | "forgot"
   | "import"
+  | "draft"
+  | "connect"
   | "complete"
   | "error"
   | "arrival";
@@ -103,11 +105,11 @@ export class TactileSynth {
     volume: number,
   ) {
     this.compressor = context.createDynamicsCompressor();
-    Object.assign(this.compressor.threshold, { value: -22 });
-    this.compressor.knee.value = 6;
-    this.compressor.ratio.value = 12;
-    this.compressor.attack.value = 0.002;
-    this.compressor.release.value = 0.065;
+    this.compressor.threshold.value = -23;
+    this.compressor.knee.value = 3;
+    this.compressor.ratio.value = 4;
+    this.compressor.attack.value = 0.001;
+    this.compressor.release.value = 0.045;
     this.limiter = context.createWaveShaper();
     const curve = new Float32Array(4097);
     for (let i = 0; i < curve.length; i++) {
@@ -176,7 +178,7 @@ export class TactileSynth {
     if (this.muted || this.disposed || e.at < c.currentTime - AUDIO.stale)
       return false;
     const at = Math.max(c.currentTime, e.at),
-      life = 0.14;
+      life = 0.15;
     this.budget.prune(c.currentTime);
     const reservation = this.budget.reserve({
       id: e.id,
@@ -195,12 +197,13 @@ export class TactileSynth {
     pan.pan.value = e.pan ?? 0;
     const dark =
       e.kind === "forgot" || e.kind === "error" || e.kind === "close";
-    bus.gain.value = (e.level ?? 0.8) * (e.kind === "close" ? 0.55 : 1);
+    bus.gain.value =
+      (e.level ?? 0.8) * (dark ? 0.64 : e.kind === "arrival" ? 0.28 : 0.82);
     bus.connect(pan).connect(this.compressor);
     const shade =
       subjectRegister(e.subject) *
       (e.brightness ?? 1) *
-      (dark ? 0.8 : 1) *
+      (dark ? 0.83 : 1) *
       (0.985 + 0.03 * this.random());
     const burst = (
       offset: number,
@@ -219,8 +222,9 @@ export class TactileSynth {
       for (let i = 0; i < samples.length; i++)
         samples[i] =
           (this.random() * 2 - 1) *
-          Math.min(1, i / 3) *
-          Math.exp((-7 * i) / samples.length);
+          Math.min(1, i / 16) *
+          Math.exp((-6 * i) / samples.length) *
+          Math.min(1, (samples.length - 1 - i) / 20);
       const source = c.createBufferSource(),
         filter = c.createBiquadFilter(),
         amp = c.createGain();
@@ -251,20 +255,56 @@ export class TactileSynth {
       source.start(at + offset);
       source.stop(at + offset + duration + 0.003);
     };
-    burst(0, 0.004, 0.16, 2500, 0, 600);
-    [250, 440, 790].forEach((f, i) =>
-      burst(
-        0.0007 + i * 0.0004,
-        0.047 * (1 - i * 0.16) * (e.kind === "close" ? 0.7 : dark ? 0.85 : 1),
-        [0.57, 0.38, 0.12][i],
-        f,
-        1.1,
-      ),
-    );
-    burst(0.006, 0.012, 0.055, 1050, 0, 170);
-    // Nonharmonic metal sits 20 dB below the strongest body excitation.
-    burst(0.009, dark ? 0.042 : 0.065, dark ? 0.025 : 0.057, 1477, 8.5);
-    burst(0.011, 0.08, dark ? 0.012 : 0.032, 2213, 10);
+    // Dry relay contact, low-mid body and a short, subdued metal edge.
+    // Each event is synthesized here; no audition recording is loaded.
+    burst(0, 0.0028, 0.2, 3200, 0.65, 950);
+    burst(0.0008, 0.034, 0.69, 235, 0.95);
+    burst(0.0012, 0.027, 0.32, 465, 0.9);
+    burst(0.0017, 0.019, 0.09, 780, 1);
+    burst(0.0048, 0.0065, 0.065, 1700, 0.7, 650);
+    burst(0.002, 0.026, 0.062, 1380, 3.2);
+    burst(0.003, 0.032, 0.025, 2190, 4.5);
+    if (e.kind !== "arrival") {
+      const source = c.createBufferSource();
+      const buffer = c.createBuffer(
+        1,
+        Math.ceil(c.sampleRate * 0.039),
+        c.sampleRate,
+      );
+      const samples = buffer.getChannelData(0);
+      const metals = [
+        [1567, dark ? 0.0015 : 0.0032],
+        [2471, dark ? 0.0007 : 0.0014],
+      ];
+      for (let i = 0; i < samples.length; i++) {
+        const t = i / c.sampleRate;
+        samples[i] = metals.reduce(
+          (sum, [hz, level]) =>
+            sum +
+            Math.sin(2 * Math.PI * hz * shade * t) *
+              level *
+              Math.min(1, t / 0.0009) *
+              Math.exp(-180 * t) *
+              Math.max(0, Math.min(1, (0.038 - t) / 0.005)),
+          0,
+        );
+      }
+      source.buffer = buffer;
+      voice.sources.push(source);
+      voice.nodes.push(source);
+      source.connect(bus);
+      source.onended = () => {
+        voice.sources = voice.sources.filter((s) => s !== source);
+        source.disconnect();
+        if (!voice.sources.length) {
+          voice.nodes.forEach((n) => n.disconnect());
+          this.active.delete(e.id);
+          this.budget.remove(e.id);
+        }
+      };
+      source.start(at);
+      source.stop(at + 0.039);
+    }
     return true;
   }
 }

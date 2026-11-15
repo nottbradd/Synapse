@@ -30,6 +30,13 @@ import {
   type SceneNode,
 } from "./topology";
 import { GraphLight, litColor, lightColor } from "./light";
+import {
+  connection,
+  curveLength,
+  pointOn,
+  trace,
+  junction,
+} from "./connections";
 type Caption = Rect & { text: string; color: string };
 export class GraphScene {
   topology = new GraphTopology();
@@ -48,6 +55,7 @@ export class GraphScene {
   container: HTMLDivElement | null = null;
   snapshot?: Snapshot;
   selected?: string;
+  auxiliaryOpen = false;
   hover?: string;
   query = "";
   reduced = false;
@@ -84,7 +92,9 @@ export class GraphScene {
         this.pending = undefined;
       } else if (
         e.event.intent.kind === "select" ||
-        e.event.intent.kind === "follow"
+        e.event.intent.kind === "follow" ||
+        e.event.intent.kind === "connect" ||
+        e.event.intent.kind === "complete"
       )
         this.pending = e.event;
       this.wake();
@@ -108,6 +118,7 @@ export class GraphScene {
     view: Viewport,
     editorWidth: number,
     reduced: boolean,
+    auxiliaryOpen = false,
   ) {
     const now = performance.now(),
       scope = JSON.stringify(snapshot.organization.location),
@@ -116,6 +127,8 @@ export class GraphScene {
       JSON.stringify(view) !== JSON.stringify(this.view) ||
       editorWidth !== this.editorWidth;
     const selectionChanged = this.selected !== selected;
+    const wasOpen = !!this.selected || this.auxiliaryOpen;
+    const isOpen = !!selected || auxiliaryOpen;
     if (scopeChanged && this.scope) {
       this.overviews.set(
         this.scope,
@@ -140,18 +153,18 @@ export class GraphScene {
         now,
       );
     }
-    if (selectionChanged) {
+    if (selectionChanged || wasOpen !== isOpen) {
       this.rings.select(selected, now);
       if (selected) {
         const node = this.topology.positions.get(selected);
         if (node && this.topology.data.nodes.includes(node)) {
-          if (!this.selected)
+          if (!wasOpen)
             this.beforeDrawer = { ...this.motion.destination, drawer: 0 };
           this.retarget(
             {
               x: node.x ?? 0,
               y: node.y ?? 0,
-              zoom: Math.max(0.65, Math.min(1.8, this.motion.frame.zoom)),
+              zoom: this.focusZoom(node, editorWidth + 32),
               drawer: editorWidth + 32,
             },
             now,
@@ -161,6 +174,13 @@ export class GraphScene {
             { ...this.motion.destination, drawer: editorWidth + 32 },
             now,
           );
+      } else if (auxiliaryOpen) {
+        if (!wasOpen)
+          this.beforeDrawer = { ...this.motion.destination, drawer: 0 };
+        this.retarget(
+          { ...this.motion.destination, drawer: editorWidth + 32 },
+          now,
+        );
       } else
         this.retarget(
           { ...(this.beforeDrawer ?? this.motion.destination), drawer: 0 },
@@ -168,21 +188,50 @@ export class GraphScene {
         );
     } else if (sizeChanged) {
       this.retarget(
-        { ...this.motion.destination, drawer: selected ? editorWidth + 32 : 0 },
+        { ...this.motion.destination, drawer: isOpen ? editorWidth + 32 : 0 },
         now,
       );
     }
     this.selected = selected;
+    this.auxiliaryOpen = auxiliaryOpen;
     this.updateRelated();
     this.dirty = true;
     this.wake();
+  }
+  focusZoom(node: SceneNode, drawer: number) {
+    const linked = new Set(
+      (this.snapshot?.edges ?? []).flatMap((e) =>
+        e.source === node.id
+          ? [e.target]
+          : e.target === node.id
+            ? [e.source]
+            : [],
+      ),
+    );
+    const nearby = this.topology.data.nodes
+      .filter((n) => linked.has(n.id))
+      .map((n) => ({
+        dx: Math.abs((n.x ?? 0) - (node.x ?? 0)),
+        dy: Math.abs((n.y ?? 0) - (node.y ?? 0)),
+      }))
+      .sort((a, b) => Math.hypot(a.dx, a.dy) - Math.hypot(b.dx, b.dy))
+      .slice(0, 8);
+    const bounds = usable(this.view, drawer);
+    return Math.max(
+      0.85,
+      Math.min(
+        2.4,
+        (bounds.width - 140) / (2 * Math.max(80, ...nearby.map((n) => n.dx))),
+        (bounds.height - 100) / (2 * Math.max(80, ...nearby.map((n) => n.dy))),
+      ),
+    );
   }
   installForces() {
     const api = this.api;
     if (!api) return;
     (
       api.d3Force("charge") as unknown as { strength: (v: number) => void }
-    )?.strength(-105);
+    )?.strength(-130);
     (
       api.d3Force("link") as unknown as {
         distance: (
@@ -190,7 +239,7 @@ export class GraphScene {
         ) => void;
       }
     )?.distance((e) =>
-      e.source.subject_id === e.target.subject_id ? 105 : 190,
+      e.source.subject_id === e.target.subject_id ? 120 : 225,
     );
     (
       api.d3Force("link") as unknown as {
@@ -212,15 +261,15 @@ export class GraphScene {
       }
       const cells = new Map<string, SceneNode[]>();
       for (const n of this.topology.data.nodes) {
-        const cx = Math.floor((n.x ?? 0) / 40),
-          cy = Math.floor((n.y ?? 0) / 40);
+        const cx = Math.floor((n.x ?? 0) / 48),
+          cy = Math.floor((n.y ?? 0) / 48);
         for (let x = cx - 1; x <= cx + 1; x++)
           for (let y = cy - 1; y <= cy + 1; y++)
             for (const o of cells.get(`${x},${y}`) ?? []) {
               const dx = (n.x ?? 0) - (o.x ?? 0),
                 dy = (n.y ?? 0) - (o.y ?? 0),
                 d = Math.hypot(dx, dy) || 0.01,
-                min = nodeRadius(n) + nodeRadius(o) + 12;
+                min = nodeRadius(n) + nodeRadius(o) + 20;
               if (d < min) {
                 const p = ((min - d) / d) * alpha * 0.5;
                 n.vx = (n.vx ?? 0) + dx * p;
@@ -276,7 +325,7 @@ export class GraphScene {
           ? this.topology.data.nodes
           : compositionNodes(this.topology.data.nodes),
         this.view,
-        this.selected ? this.editorWidth + 32 : 0,
+        this.selected || this.auxiliaryOpen ? this.editorWidth + 32 : 0,
       ),
     );
   }
@@ -321,9 +370,14 @@ export class GraphScene {
       );
       this.drawer.style.transform = `translateX(${(this.editorWidth + 24) * (1 - fraction)}px)`;
       this.drawer.style.visibility =
-        fraction === 0 && !this.selected ? "hidden" : "visible";
+        fraction === 0 && !this.selected && !this.auxiliaryOpen
+          ? "hidden"
+          : "visible";
     }
-    if (this.heading) this.heading.style.right = `${f.drawer + 28}px`;
+    if (this.heading) {
+      this.heading.style.right = `${f.drawer + 28}px`;
+      this.heading.style.left = `${this.view.left + 28}px`;
+    }
     if (this.controls)
       this.controls.style.left = `${this.view.left + (this.view.width - this.view.left - f.drawer) / 2}px`;
     if (this.zoomText)
@@ -345,8 +399,12 @@ export class GraphScene {
       const event = this.pending,
         intent = event.intent;
       if (
-        (intent.kind === "select" || intent.kind === "follow") &&
-        this.selected === intent.node
+        "node" in intent &&
+        intent.node &&
+        this.topology.data.nodes.some((node) => node.id === intent.node) &&
+        (intent.kind === "complete" ||
+          intent.kind === "connect" ||
+          this.selected === intent.node)
       ) {
         const source =
           intent.kind === "follow"
@@ -359,7 +417,14 @@ export class GraphScene {
                   (e.source === source && e.target === intent.node) ||
                   (e.target === source && e.source === intent.node),
               )
-            : this.snapshot!.edges;
+            : intent.kind === "connect" && intent.targets
+              ? this.snapshot!.edges.filter(
+                  (e) =>
+                    (e.source === source &&
+                      intent.targets!.includes(e.target)) ||
+                    (e.target === source && intent.targets!.includes(e.source)),
+                )
+              : this.snapshot!.edges;
         const plan = planSignals(
           event.id,
           source,
@@ -371,8 +436,8 @@ export class GraphScene {
           event.at,
           this.colors,
         );
-        feedback.cancel(this.signals.replace(plan));
-        feedback.arrivals(plan, intent.kind === "follow");
+        feedback.cancel(this.signals.replace(this.reduced ? [] : plan));
+        if (!this.reduced) feedback.arrivals(plan, intent.kind === "follow");
         this.pending = undefined;
       } else if (now - event.at > 150) this.pending = undefined;
     }
@@ -388,6 +453,14 @@ export class GraphScene {
     } else this.api?.pauseAnimation();
   };
   private projected(frame: Frame): LabelNode[] {
+    const prominent = new Set<string>();
+    for (const subject of this.colors.keys()) {
+      this.topology.data.nodes
+        .filter((n) => n.subject_id === subject)
+        .sort((a, b) => b.neighbors - a.neighbors || a.id.localeCompare(b.id))
+        .slice(0, frame.zoom < 1.5 ? 2 : 4)
+        .forEach((n) => prominent.add(n.id));
+    }
     return this.topology.data.nodes.map((n) => {
       const match = `${n.title} ${n.id}`
         .toLowerCase()
@@ -406,7 +479,10 @@ export class GraphScene {
                 ? match
                   ? 700
                   : 0
-                : frame.zoom < 0.5
+                : frame.zoom < 0.5 ||
+                    (!prominent.has(n.id) &&
+                      !this.related.has(n.id) &&
+                      frame.zoom < 1.8)
                   ? 0
                   : frame.zoom < 0.85 && n.neighbors < 3
                     ? 0
@@ -547,8 +623,7 @@ export class GraphScene {
         ctx.globalAlpha = value * 0.9;
         ctx.strokeStyle = "#f2f6fa";
         ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, (n.radius + 6) * (0.8 + 0.2 * value), 0, Math.PI * 2);
+        junction(ctx, n.x, n.y, (n.radius + 5) * (0.8 + 0.2 * value), true);
         ctx.stroke();
       }
     }
@@ -558,6 +633,7 @@ export class GraphScene {
           b = nodes.find((n) => n.id === p.target);
         if (!a || !b) continue;
         const t = (now - p.start) / p.duration;
+        const path = connection(a, b, p.source, p.target);
         ctx.fillStyle = p.color;
         ctx.strokeStyle = p.color;
         if (t >= 0 && t < 1) {
@@ -566,31 +642,25 @@ export class GraphScene {
           ctx.beginPath();
           const tail = Math.max(
             0,
-            t -
-              Math.min(
-                0.16,
-                18 / Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)),
-              ),
+            t - Math.min(0.16, 18 / Math.max(1, curveLength(path))),
           );
-          ctx.moveTo(a.x + (b.x - a.x) * tail, a.y + (b.y - a.y) * tail);
-          ctx.lineTo(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+          const first = pointOn(path, tail),
+            head = pointOn(path, t);
+          ctx.moveTo(first.x, first.y);
+          for (let i = 1; i <= 6; i++) {
+            const point = pointOn(path, tail + ((t - tail) * i) / 6);
+            ctx.lineTo(point.x, point.y);
+          }
           ctx.stroke();
           ctx.beginPath();
-          ctx.arc(
-            a.x + (b.x - a.x) * t,
-            a.y + (b.y - a.y) * t,
-            1.7,
-            0,
-            Math.PI * 2,
-          );
-          ctx.fill();
+          ctx.fillRect(head.x - 1.2, head.y - 1.2, 2.4, 2.4);
         } else if (t >= 1) {
           const bloom = (now - p.arrival) / MOTION.bloomDuration;
           if (bloom < 1) {
-            ctx.globalAlpha = (1 - bloom) * 0.35;
-            ctx.beginPath();
-            ctx.arc(b.x, b.y, b.radius + 4 + bloom * 4, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.globalAlpha = (1 - bloom) * 0.75;
+            ctx.lineWidth = 1;
+            junction(ctx, b.x, b.y, b.radius + 3 + bloom * 2, true);
+            ctx.stroke();
           }
         }
       }
@@ -621,22 +691,30 @@ export class GraphScene {
     const color = this.colors.get(a.subject_id) ?? "#95a6b8";
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(a.x ?? 0, a.y ?? 0);
-    ctx.lineTo(b.x ?? 0, b.y ?? 0);
+    trace(
+      ctx,
+      connection(
+        { x: (a.x ?? 0) * scale, y: (a.y ?? 0) * scale },
+        { x: (b.x ?? 0) * scale, y: (b.y ?? 0) * scale },
+        a.id,
+        b.id,
+      ),
+      scale,
+    );
     if (same) {
       ctx.strokeStyle = lightColor(
         color,
-        (active ? 0.19 : 0.085) * this.lightDensity(),
+        (active ? 0.13 : 0.025) * this.lightDensity(),
       );
-      ctx.lineWidth = (active ? 3.4 : 2.5) / scale;
+      ctx.lineWidth = (active ? 2.5 : 1.6) / scale;
       ctx.stroke();
     }
     ctx.strokeStyle = same
-      ? lightColor(color, active ? 0.84 : 0.45)
+      ? lightColor(color, active ? 0.94 : 0.62)
       : active
         ? "#a5c3d08c"
         : "#839aaf3b";
-    ctx.lineWidth = (active ? 1.15 : same ? 0.85 : 0.65) / scale;
+    ctx.lineWidth = (active ? 1.15 : same ? 0.7 : 0.5) / scale;
     ctx.stroke();
     ctx.restore();
   }
@@ -656,9 +734,9 @@ export class GraphScene {
       (this.hover && !this.related.has(n.id))
         ? 0.38
         : 1;
-    const halo = r * (active ? 3.2 : 2.8);
+    const halo = r * (active ? 2.1 : 1.65);
     ctx.globalCompositeOperation = "lighter";
-    ctx.globalAlpha = alpha * this.lightDensity() * (connected ? 1 : 0.85);
+    ctx.globalAlpha = alpha * this.lightDensity() * (connected ? 0.5 : 0.3);
     ctx.drawImage(
       this.light.texture(color),
       x - halo,
@@ -668,17 +746,41 @@ export class GraphScene {
     );
     ctx.globalCompositeOperation = "source-over";
     ctx.globalAlpha = alpha;
-    ctx.fillStyle = litColor(color, active ? 0.23 : connected ? 0.2 : 0.12);
-    ctx.strokeStyle = litColor(color, 0.42);
-    ctx.lineWidth = 0.65 / scale;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = litColor(color, active ? 0.88 : connected ? 0.8 : 0.7);
-    ctx.beginPath();
-    ctx.arc(x, y, r * (active ? 0.46 : 0.34), 0, Math.PI * 2);
-    ctx.fill();
+    if (n.neighbors < 2) {
+      ctx.fillStyle = litColor(color, active ? 0.65 : 0.18);
+      ctx.beginPath();
+      ctx.moveTo(x, y - r);
+      ctx.lineTo(x + r, y);
+      ctx.lineTo(x, y + r);
+      ctx.lineTo(x - r, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = litColor(color, 0.4);
+      ctx.lineWidth = 0.65 / scale;
+      ctx.beginPath();
+      ctx.moveTo(x - r * 1.3, y);
+      ctx.lineTo(x + r * 1.3, y);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = "#080c10";
+      junction(ctx, x, y, r);
+      ctx.fill();
+      ctx.strokeStyle = litColor(color, active ? 0.45 : 0.12);
+      ctx.lineWidth = (n.neighbors >= 5 ? 1.1 : 0.85) / scale;
+      junction(ctx, x, y, r, n.neighbors >= 5);
+      ctx.stroke();
+      ctx.fillStyle = litColor(color, active ? 0.8 : connected ? 0.3 : 0.12);
+      const core = r * (n.neighbors >= 5 ? 0.48 : 0.44);
+      ctx.fillRect(x - core, y - core, core * 2, core * 2);
+      if (n.neighbors >= 5) {
+        ctx.strokeStyle = litColor(color, 0.2);
+        ctx.lineWidth = 0.75 / scale;
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + r + 3 / scale, y);
+        ctx.stroke();
+      }
+    }
     ctx.restore();
   }
 }

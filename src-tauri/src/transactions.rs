@@ -1,4 +1,5 @@
-// Imports publish a whole directory and two metadata files. A durable journal makes
+// Imports publish a directory and organization, history and optional study metadata.
+// A durable journal makes
 // interrupted publication recoverable before any snapshot is exposed to the UI.
 use crate::{
     errors::{Error, Result},
@@ -19,6 +20,10 @@ pub struct Journal {
     pub organization_after: String,
     pub history_before: Option<String>,
     pub history_after: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub study_before: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub study_after: Option<String>,
 }
 pub fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
@@ -73,6 +78,19 @@ pub fn recover(root: &Path) -> Result<()> {
         ));
     }
     let stage = vault::contained(&meta, &journal.stage, false)?;
+    let study = current(&meta, "study.json")?;
+    if let Some(after) = &journal.study_after {
+        if after.len() > 8 * 1024 * 1024 {
+            return Err(Error::new("recovery", "Study metadata exceeds limit"));
+        }
+        crate::study::validate(&serde_json::from_str(after)?)?;
+        if !acceptable(&study, journal.study_before.as_deref(), after) {
+            return Err(Error::new(
+                "recovery",
+                "Study content changed outside Synapse during import; recovery paused",
+            ));
+        }
+    }
     let dest = vault::contained(root, &journal.destination, false)?;
     let original = current(&meta, "organization.json")?;
     let history = current(root, "flashcards.json")?;
@@ -150,6 +168,17 @@ pub fn recover(root: &Path) -> Result<()> {
             original.as_ref().map(|s| notes::hash(s)).as_deref(),
             false,
         )?;
+    }
+    if let Some(after) = &journal.study_after {
+        if study.as_deref() != Some(after) {
+            vault::atomic_write(
+                &meta,
+                "study.json",
+                after,
+                study.as_ref().map(|s| notes::hash(s)).as_deref(),
+                false,
+            )?;
+        }
     }
     // Recheck the journal too: never remove a concurrently edited recovery record.
     if current(&meta, "pending-import.json")?.as_deref() != Some(&text) {
