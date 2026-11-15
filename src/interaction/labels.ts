@@ -119,6 +119,7 @@ export class AnimatedLabels {
       const text = truncate(n.title, limit, measure),
         width = measure(text) + 8;
       let l = this.states.get(n.id);
+      const newlyPrioritized = !l || n.priority > l.priority;
       if (!l) {
         l = {
           id: n.id,
@@ -170,7 +171,12 @@ export class AnimatedLabels {
           ),
       );
       let target = l.target;
-      if (
+      if (newlyPrioritized && n.priority >= 700 && !clean(target)) {
+        // A newly selected/hovered/searched label must get a clear placement,
+        // including one previously hidden at a lower priority. Subsequent
+        // placement changes still use the normal hysteresis thresholds.
+        target = [0, Math.PI, Math.PI / 2].find(clean) ?? target;
+      } else if (
         l.target !== l.preferred &&
         clearance(normal, viewport) >= MOTION.restoreClearance &&
         !collision(normal)

@@ -7,13 +7,13 @@ Executed on Windows x64 on 15 November 2026 (Australia/Sydney), using synthetic 
 | Check | Result |
 | --- | --- |
 | TypeScript typecheck and ESLint | Passed |
-| Frontend unit tests | 36 passed |
+| Frontend unit tests | 38 passed |
 | Rust unit tests | 18 passed |
 | Rust formatting and Clippy with warnings denied | Passed |
 | npm audit | 0 vulnerabilities |
 | Production Vite/Rust/NSIS build | Passed |
 
-New tests cover exact critically damped integration, rest/settling, continuous reversal, shared drawer/camera progress, log zoom, no secondary drift, measured usable-centre projection, reduced motion, outlier-inclusive fitting, forced label flips in both directions, upper-arc clearance, hysteresis, relative anchoring, constant label width, ring timing, font measurement invalidation, signal durations/arrival/cancellation, hub bounds, polyphony, priority and repeated-cue gates, future reservations, native-focus dominance, audio lifecycle and preference persistence. Hidden-label radius settling has a regression test. Existing WikiLink, archive, recovery, containment, Unicode, subject-identity and scheduler checks remain.
+New tests cover exact critically damped integration, rest/settling, continuous reversal, shared drawer/camera progress, log zoom, no secondary drift, measured usable-centre projection, reduced motion, outlier-inclusive fitting, forced label flips in both directions, upper-arc clearance, hysteresis, relative anchoring, constant label width, ring timing, font measurement invalidation, signal durations/arrival/cancellation, hub bounds, polyphony, priority and repeated-cue gates, future reservations, native-focus dominance, audio lifecycle and preference persistence. Regression tests cover hidden-label radius settling and clear placement when a new or previously hidden label becomes selected. Existing WikiLink, archive, recovery, containment, Unicode, subject-identity and scheduler checks remain.
 
 The build retains a Vite bundle-size advisory: approximately 1.50 MB JavaScript before compression, 488 KB compressed. Fonts and their OFL licenses are embedded locally. The application and installer are unsigned.
 
@@ -46,17 +46,17 @@ Native minimize testing cancelled queued contacts and muted the synth. A later D
 
 The actual native Windows app was inspected at the current 100% display setting. WebView viewport tests covered 900×600, 1440×900 and 1600×1000 layouts. Density emulation at 1000×700 and DPR 1.5/2 allocated 1500/2000-pixel Canvas backing stores with no horizontal page overflow. This is WebView density emulation, not an actual Windows DPI switch or multi-monitor transition test.
 
-Actual application screenshots and reports are retained under ignored `.local/`. The separate 32-note capture vault is clearly named `Synapse release verification` and contains synthetic notes. The capture harness records the packaged app and taps only its own final Web Audio output, without microphone or desktop audio access. Capture completion and delivery links are reported separately; a production recording is not claimed merely because the earlier prototype exists.
+Actual application screenshots and reports are retained under ignored `.local/`. The separate 32-note capture vault is clearly named `Synapse release verification` and contains synthetic notes. A 14.21-second recording of the final packaged executable captured 222 source frames and its live Web Audio output during selection, WikiLink navigation, subject focus and a successful review session. The 1600×1000 H.264/AAC MP4 is `.local/Synapse-0.3.0-demo.mp4`; decoded audio peaked at -25.5 dBFS and was non-silent. The capture taps only the app's final audio output, without microphone or desktop audio access. No prototype footage or replacement sound track is used.
 
-Native folder chooser rendering and Escape cancellation were verified. A complete native selection/save cycle remains unverified: the Windows automation helper reported unavailable child indexes and placed focus in the wrong native control. No security setting or ACL was changed. The user-dismissed firewall prompt from the previous session was not automated.
+Native folder selection, subject export through the Save dialog, package selection through the Open dialog, valid import preview and cancellation were verified in the Tauri development executable. Folder selection also passed in the final production executable. After the helper reported unavailable child indexes, keyboard navigation and screenshot coordinates completed the real dialogs without substituting their responses. The exported eight-note Physics package was nonempty and cancellation left the subject registry unchanged. Completing the native folder dialog restored genuine native focus for the production recording. No security setting or ACL was changed. The user-dismissed firewall prompt from the previous session was not automated.
 
 Subjective listening is unverified because the available execution environment does not support audio input. The synth was inspected, rendered, level-checked and supplied for playback; no claim of a human listening comparison is made. Multi-hour use, every keyboard path and actual multi-monitor DPI transitions remain outside this focused pass.
 
 ## Artifacts
 
-- Executable: `src-tauri/target/release/synapse.exe` — 13,764,096 bytes
-- Installer: `src-tauri/target/release/bundle/nsis/Synapse_0.3.0_x64-setup.exe` — 4,363,113 bytes
-- Executable SHA-256: `ba0ad3c9061d722d96276cfedb993891fa05a11f732220ad878b1bb67732d339`
-- Installer SHA-256: `0e67d1579c0a0aba3901b53563e65c829771fdbc7c5adb74944c3019b617fb73`
+- Executable: `src-tauri/target/release/synapse.exe` — 13,764,608 bytes
+- Installer: `src-tauri/target/release/bundle/nsis/Synapse_0.3.0_x64-setup.exe` — 4,361,715 bytes
+- Executable SHA-256: `c771d09fb5a3003ff0991305b926caff5860bed793e695a4e1b573dcd77cce50`
+- Installer SHA-256: `34a45122b759fd4cc64b339876273a957ece74d7733d8cfcbf75721fdc7ba556`
 
 GitHub remains private. Hosted CI status must be checked against the delivered commit; local results do not imply a hosted run has finished.

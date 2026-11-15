@@ -41,6 +41,45 @@ it("does not let a distant future gate suppress an earlier direct contact", () =
   );
 });
 describe("one layout clock", () => {
+  it.each([false, true])(
+    "gives a selected label a clear side even for shallow overlaps (previously hidden: %s)",
+    (previouslyHidden) => {
+      const labels = new AnimatedLabels(),
+        bounds = { x: 0, y: 0, width: 1000, height: 600 };
+      const selected = {
+        id: "selected",
+        title: "Conservation of momentum",
+        x: 500,
+        y: 250,
+        radius: 5,
+        priority: 1000,
+      };
+      const obstacle = {
+        id: "other",
+        title: "Other",
+        x: 550,
+        y: 237,
+        radius: 3,
+        priority: 0,
+      };
+      if (previouslyHidden) {
+        labels.plan(
+          [{ ...selected, priority: 100 }, obstacle],
+          bounds,
+          (t) => t.length * 7,
+          0,
+        );
+        expect(labels.states.get("selected")!.show).toBe(false);
+      }
+      labels.plan([selected, obstacle], bounds, (t) => t.length * 7, 1000);
+      expect(labels.states.get("selected")!.target).toBe(Math.PI);
+      expect(
+        labels
+          .advance([selected, obstacle], 1, true, bounds)
+          .some((l) => l.id === "selected"),
+      ).toBe(true);
+    },
+  );
   it("starts from rest and converges monotonically without secondary drift", () => {
     const m = new LayoutMotion(origin, 0),
       target = { x: 200, y: 90, zoom: 2, drawer: 480 };
