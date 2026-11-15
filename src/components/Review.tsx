@@ -4,6 +4,7 @@ import type { Rating, Snapshot } from "../types";
 import { inLocation } from "../types";
 import Markdown from "./Markdown";
 import { feedback } from "../interaction/events";
+import { formatInterval, useRatingPreviews } from "../hooks/useRatingPreviews";
 export default function Review({
   snapshot,
   onRate,
@@ -45,6 +46,7 @@ export default function Review({
   const card = due[0],
     fresh = due.filter((c) => !snapshot.history.cards[c.id]).length;
   const revealed = !!card && revealedId === card.id;
+  const previews = useRatingPreviews(snapshot, card?.id);
   const retry = cards
     .filter(
       (c) =>
@@ -56,7 +58,7 @@ export default function Review({
         snapshot.history.cards[a.id].due - snapshot.history.cards[b.id].due,
     )[0];
   async function rate(rating: Rating) {
-    if (!card || busy) return;
+    if (!card || !revealed || !previews.data || busy) return;
     setBusy(true);
     try {
       if (await onRate(card.id, rating)) {
@@ -175,6 +177,14 @@ export default function Review({
               <ArrowUpRight size={13} />
             </button>
             <footer>
+              {previews.error && (
+                <div className="interval-error" role="alert">
+                  <span>{previews.error}</span>
+                  <button onClick={previews.retry} disabled={busy}>
+                    Retry intervals
+                  </button>
+                </div>
+              )}
               {!revealed ? (
                 <button
                   className="primary reveal"
@@ -188,7 +198,7 @@ export default function Review({
                     (r, i) => (
                       <button
                         className="raised"
-                        disabled={busy}
+                        disabled={busy || !previews.data}
                         key={r}
                         onClick={() => void rate(r)}
                       >
@@ -196,13 +206,13 @@ export default function Review({
                           {r[0].toUpperCase() + r.slice(1)} <kbd>{i + 1}</kbd>
                         </span>
                         <small>
-                          {r === "again"
-                            ? "1 minute"
-                            : r === "hard"
-                              ? "Short interval"
-                              : r === "good"
-                                ? "Standard interval"
-                                : "Long interval"}
+                          {previews.data
+                            ? formatInterval(
+                                previews.data.options.find(
+                                  (option) => option.rating === r,
+                                )!.interval_seconds,
+                              )
+                            : "…"}
                         </small>
                       </button>
                     ),

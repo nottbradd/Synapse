@@ -24,6 +24,8 @@ pub fn run() {
             commands::save_note,
             commands::refresh_vault,
             commands::rate_card,
+            commands::preview_ratings,
+            commands::present_note,
             commands::organize,
             commands::create_note,
             commands::inspect_subject,

@@ -1,14 +1,26 @@
 # Synapse interaction architecture
 
-The frontend refinement does not change the Rust storage, migration, transfer or scheduling semantics. Production interactions originate from successful app operations; there is no demo timeline, scripted pointer, synthetic note injection or prototype global state.
+The refinement extends the Rust parser with read-only presentation metadata and exposes read-only scheduling previews. Storage, migration, transfer, card identity and scheduling rules retain their existing semantics. Production interactions originate from successful app operations; there is no demo timeline, scripted pointer, synthetic note injection or prototype global state.
 
 ## Layout and Canvas
 
 `GraphTopology` retains node objects and explicit drag pins by note identity. Its graph-data key contains only displayed identities, subject membership and actual edges. Updating a revision or title changes node metadata without replacing the graph-data object. Subject anchors are keyed by subject UUID, never display name. The simulation uses weak subject attraction alongside actual links, charge and local collision forces. Engine stop records settling only.
 
+Changing scope over already settled nodes updates visibility without warm-up or force ticks. This preserves positions while the camera focuses the subject, avoiding post-transition drift. Actual new nodes or edges re-enable layout; an explicit node drag also re-enables the force engine without automatically pinning other nodes.
+
 `LayoutMotion` represents a world anchor at the centre of the measured uncovered rectangle, log zoom and drawer width. Each layout intent sets one destination and one timestamp. The exact critically damped solution uses omega 20 rad/s, keeping position and velocity when retargeted. All graph-library camera calls have zero duration; there is no second transition. Before opening a drawer, the controller retains the overview frame. Scope changes retain frames per location. User panning adopts the library's current camera as the new frame.
 
 `GraphScene` owns the animation clock, Canvas state and DOM transforms outside React state. ResizeObserver updates are deferred to the next animation frame. Active interactions resume the graph renderer; once physics, labels, rings and packets settle it pauses. A pointer movement wakes hit testing without generating audio. Reduced-motion changes snap the same controller destination and label offsets, retain static relationships, and skip packets and blooms.
+
+Node body/core/rim and edge widths use CSS pixels, converted to world units by the current zoom. Hub size remains bounded. A 64-entry texture cache supplies compact node halos and subject light fields. The separate light Canvas uses the same frame and DPR as geometry, with subject field bounds derived from actual positions. Additive blending is confined to illumination and restored before foreground rendering. The geometry Canvas is clipped outside the uncovered area, while diffuse light can continue behind glass. Global density attenuation bounds accumulated halos in large graphs; no full-frame blur or additional animation loop is used.
+
+Navigation, reading, floating controls, menus and dialogs have separate tint/blur tokens. Background alpha leaves text and icons fully opaque. The `@supports` rule enables backdrop diffusion and saturation; otherwise surfaces use the solid material. The `opaque-materials` root class exercises that same fallback in desktop checks.
+
+## Recall and interval previews
+
+Rust's canonical extraction pass supplies every recognised occurrence and its UTF-16 range in the frontmatter-stripped Markdown body. Review still deduplicates by the original content hash. The remark transformer replaces only those source ranges and reparses surrounding fragments with the existing Markdown processor. A stable React section renderer retains reveal state on ordinary refreshes; note identity and card content determine resets. Rendering the answer omits presentation metadata, so Review and nested answer Markdown never create recursive recall blocks.
+
+`preview_ratings` validates the active vault and indexed card, then reads validated history without scanning, migrating or writing the vault. Four calls to the existing scheduler share one captured timestamp. Commit uses the same history loader and scheduler through `rate_at`, retaining the due check and optimistic atomic write. The React hook discards stale asynchronous responses and refreshes only when the vault, card, relevant history or retry changes. TypeScript formats durations but contains no scheduling rules. Rating remains disabled until the answer and interval preview are available.
 
 ## Labels and signals
 
@@ -36,6 +48,18 @@ Launch the built executable with `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote
 - `scripts/transfer-desktop.mjs`: real Rust transfer flow with only native chooser responses substituted; use the development app after the update harness.
 - `scripts/interaction-desktop.mjs`: development-only instrumentation of the real scene; camera centring, reversal, idle pause, body edits, runtime reduced motion, forced pinned-camera flips, actual audio rendering/cleanup and preference reload.
 - `scripts/release-verify.mjs`: packaged app, offline reload/edit/review, missing WikiLinks, window close guard, exact stable Canvas comparison, density emulation and fallback/empty states.
+- `scripts/refinement-desktop.mjs before|after`: eight comparable views using persisted fixture identities and matched viewport settings.
+- `scripts/recall-desktop.mjs`: real parser and scheduler integration, keyboard reveal, Markdown/WikiLink/KaTeX answers, reset/preservation behaviour, read-only history, history refresh and repeated rating protection in a disposable vault.
+- `scripts/label-drag-desktop.mjs`: real pointer drag causing a right-to-left label transition with an unchanged camera; development instrumentation reads state without changing placement constraints.
+- `scripts/capture-refinement.mjs --prepare`, then without the flag: 0.3.1 packaged footage using every delivered compositor frame, original frame timestamps, transition cadence reporting, recall reveal, real label drag, review grading and the app's live audio. Native focus must be established first. FFmpeg muxing retains variable frame timing and does not interpolate motion.
 - `scripts/capture-desktop.mjs --setup`: creates a separately identified synthetic capture vault in the temporary directory. Run without `--setup` against a focused packaged app to capture actual user actions, screenshots and the live sound stream. It writes timestamped frames, an FFmpeg concat input and WebM audio under ignored `.local/` for MP4 muxing.
 
 The capture harness is a testing tool, not part of the application bundle. It never uses the approved prototype video as evidence of production behavior. Subjective listening and actual multi-monitor Windows DPI transitions require a human/hardware pass; density emulation is recorded separately in the validation report.
+
+The refinement capture also compares consecutive source-image hashes, so its report distinguishes delivered frames from changed frames. After capture, set `$ffmpegPath` to an available FFmpeg executable and mux without synthesising frames:
+
+```powershell
+& $ffmpegPath -y -f concat -safe 0 -i .local/refinement-capture.ffconcat -i .local/Synapse-0.3.1-audio.webm -map 0:v:0 -map 1:a:0 -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -fps_mode vfr -enc_time_base 1:1000 -x264-params fps=120/1:force-cfr=0 -level:v 5.2 -video_track_timescale 1000000 -c:a aac -b:a 160k -movflags +faststart -shortest .local/Synapse-0.3.1-demo.mp4
+```
+
+The encoder rate hint does not establish captured cadence. Use the source timestamp report, and verify decoded frame count/timing and audio separately. The delivered recording preserves all source frames and their timing to within one millisecond.

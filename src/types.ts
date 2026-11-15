@@ -67,6 +67,22 @@ export interface Card {
   question: string;
   answer: string;
 }
+export interface RecallBlock {
+  content_id: string;
+  question: string;
+  answer: string;
+  start: number;
+  end: number;
+}
+export interface NotePresentation {
+  body: string;
+  recalls: RecallBlock[];
+}
+export interface RatingPreviews {
+  card_id: string;
+  reference_time: number;
+  options: { rating: Rating; due: number; interval_seconds: number }[];
+}
 export interface Review {
   card_id: string;
   last_review: number;

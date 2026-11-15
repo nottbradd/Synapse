@@ -17,7 +17,12 @@ import {
   decodePreferences,
 } from "./preferences";
 import { TextMeasurements, watchFonts, LABEL_FONT } from "./fonts";
-import { GraphTopology } from "./topology";
+import {
+  compositionNodes,
+  GraphTopology,
+  nodeScreenRadius,
+  type SceneNode,
+} from "./topology";
 import { omitLeadingTitle } from "../components/Markdown";
 import type { Root } from "mdast";
 import type { Snapshot } from "../types";
@@ -376,6 +381,99 @@ describe("voice reservations and preferences", () => {
   });
 });
 describe("font and data stability", () => {
+  it("changes only visibility for settled scope transitions, but lays out actual new topology", () => {
+    const s = {
+      organization: {
+        location: { neuron_id: null, subject_id: null },
+        subjects: [{ id: "a" }, { id: "b" }],
+      },
+      notes: [
+        { id: "one", subject_id: "a" },
+        { id: "two", subject_id: "b" },
+      ],
+      edges: [],
+    } as unknown as Snapshot;
+    const topology = new GraphTopology();
+    topology.update(s);
+    expect(topology.layoutChanged).toBe(true);
+    const positions = [...topology.positions.values()];
+    topology.update({
+      ...s,
+      organization: {
+        ...s.organization,
+        location: { neuron_id: null, subject_id: "a" },
+      },
+    });
+    expect(topology.layoutChanged).toBe(false);
+    topology.update(s);
+    expect(topology.layoutChanged).toBe(false);
+    expect(topology.data.nodes).toEqual(positions);
+    topology.update({ ...s, edges: [{ source: "one", target: "two" }] });
+    expect(topology.layoutChanged).toBe(true);
+  });
+  it("does not reserve cluster space for empty subjects or move anchors on rename", () => {
+    const s = {
+      organization: {
+        location: { neuron_id: null, subject_id: null },
+        subjects: [{ id: "empty" }, { id: "occupied", name: "Physics" }],
+      },
+      notes: [{ id: "a", subject_id: "occupied", neighbors: 3 }],
+      edges: [],
+    } as unknown as Snapshot;
+    const topology = new GraphTopology();
+    topology.update(s);
+    expect(topology.anchors.size).toBe(1);
+    expect(topology.anchors.get("occupied")).toEqual({ x: 0, y: 0 });
+    const original = { ...topology.positions.get("a") };
+    topology.update({
+      ...s,
+      organization: {
+        ...s.organization,
+        subjects: s.organization.subjects.map((v) => ({
+          ...v,
+          name: "Renamed",
+        })),
+      },
+    });
+    expect(topology.positions.get("a")).toEqual(original);
+  });
+  it("keeps small subjects in the composition while bounding large-cluster outliers", () => {
+    const core = Array.from({ length: 40 }, (_, i) => ({
+      id: `n${i}`,
+      subject_id: "large",
+      x: i * 10,
+      y: i * 4,
+    })) as SceneNode[];
+    const lone = {
+      id: "minor",
+      subject_id: "small",
+      x: 450,
+      y: 400,
+    } as SceneNode;
+    const outlier = {
+      id: "outlier",
+      subject_id: "large",
+      x: 10000,
+      y: 10000,
+    } as SceneNode;
+    const framed = compositionNodes([...core, lone, outlier]);
+    expect(framed).toContain(lone);
+    expect(framed).not.toContain(outlier);
+    expect(fitFrame(framed, view, 0).zoom).toBeGreaterThan(
+      fitFrame([...core, lone, outlier], view, 0).zoom * 10,
+    );
+  });
+  it("keeps overview nodes legible and hub growth bounded across zoom levels", () => {
+    const leaf = { neighbors: 0 } as SceneNode,
+      hub = { neighbors: 10000 } as SceneNode;
+    for (const zoom of [0.1, 0.4, 1, 2, 6]) {
+      expect(nodeScreenRadius(leaf, zoom)).toBeGreaterThan(3.4);
+      expect(nodeScreenRadius(hub, zoom)).toBeGreaterThan(
+        nodeScreenRadius(leaf, zoom),
+      );
+      expect(nodeScreenRadius(hub, zoom)).toBeLessThan(11);
+    }
+  });
   it("waits for fonts and invalidates the old Canvas measurements on completion", async () => {
     const fonts = new EventTarget();
     Object.assign(fonts, { load: vi.fn().mockResolvedValue([]) });

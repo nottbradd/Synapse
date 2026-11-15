@@ -21,7 +21,15 @@ import {
 } from "./fonts";
 import { feedback, type InteractionEvent } from "./events";
 import { SignalTimeline, inside, planSignals } from "./signals";
-import { GraphTopology, nodeRadius, type SceneNode } from "./topology";
+import {
+  GraphTopology,
+  nodeRadius,
+  nodeScreenRadius,
+  idOf,
+  compositionNodes,
+  type SceneNode,
+} from "./topology";
+import { GraphLight, litColor, lightColor } from "./light";
 type Caption = Rect & { text: string; color: string };
 export class GraphScene {
   topology = new GraphTopology();
@@ -35,6 +43,9 @@ export class GraphScene {
   rings = new SelectionRings();
   signals = new SignalTimeline();
   measurements = new TextMeasurements();
+  light = new GraphLight();
+  lightCanvas: HTMLCanvasElement | null = null;
+  container: HTMLDivElement | null = null;
   snapshot?: Snapshot;
   selected?: string;
   hover?: string;
@@ -87,6 +98,7 @@ export class GraphScene {
       this.raf = 0;
       feedback.cancel(this.signals.cancel());
       this.labels.clear();
+      this.light.clear();
     };
   }
   configure(
@@ -124,13 +136,7 @@ export class GraphScene {
       this.beforeDrawer = undefined;
       const saved = this.overviews.get(scope);
       this.retarget(
-        saved ??
-          fitFrame(
-            this.topology.data.nodes,
-            view,
-            0,
-            !!snapshot.organization.location.subject_id,
-          ),
+        saved ?? fitFrame(compositionNodes(this.topology.data.nodes), view, 0),
         now,
       );
     }
@@ -145,7 +151,7 @@ export class GraphScene {
             {
               x: node.x ?? 0,
               y: node.y ?? 0,
-              zoom: Math.max(0.9, Math.min(1.8, this.motion.frame.zoom)),
+              zoom: Math.max(0.65, Math.min(1.8, this.motion.frame.zoom)),
               drawer: editorWidth + 32,
             },
             now,
@@ -184,7 +190,7 @@ export class GraphScene {
         ) => void;
       }
     )?.distance((e) =>
-      e.source.subject_id === e.target.subject_id ? 105 : 300,
+      e.source.subject_id === e.target.subject_id ? 105 : 190,
     );
     (
       api.d3Force("link") as unknown as {
@@ -206,8 +212,8 @@ export class GraphScene {
       }
       const cells = new Map<string, SceneNode[]>();
       for (const n of this.topology.data.nodes) {
-        const cx = Math.floor((n.x ?? 0) / 24),
-          cy = Math.floor((n.y ?? 0) / 24);
+        const cx = Math.floor((n.x ?? 0) / 40),
+          cy = Math.floor((n.y ?? 0) / 40);
         for (let x = cx - 1; x <= cx + 1; x++)
           for (let y = cy - 1; y <= cy + 1; y++)
             for (const o of cells.get(`${x},${y}`) ?? []) {
@@ -228,8 +234,8 @@ export class GraphScene {
         cells.get(key)!.push(n);
       }
     });
-    this.engine = true;
-    api.d3ReheatSimulation();
+    this.engine = this.topology.layoutChanged;
+    if (this.engine) api.d3ReheatSimulation();
     this.wake();
   }
   engineStopped() {
@@ -266,10 +272,11 @@ export class GraphScene {
   fit(all = true) {
     this.retarget(
       fitFrame(
-        this.topology.data.nodes,
+        all
+          ? this.topology.data.nodes
+          : compositionNodes(this.topology.data.nodes),
         this.view,
         this.selected ? this.editorWidth + 32 : 0,
-        !all && !!this.snapshot?.organization.location.subject_id,
       ),
     );
   }
@@ -321,6 +328,11 @@ export class GraphScene {
       this.controls.style.left = `${this.view.left + (this.view.width - this.view.left - f.drawer) / 2}px`;
     if (this.zoomText)
       this.zoomText.textContent = `${Math.round(f.zoom * 100)}%`;
+    this.container?.style.setProperty(
+      "--scene-left",
+      `${this.view.left + 8}px`,
+    );
+    this.container?.style.setProperty("--scene-right", `${f.drawer}px`);
     const visible = new Set(
       this.topology.data.nodes
         .filter((n) =>
@@ -384,7 +396,7 @@ export class GraphScene {
         ...project(n, frame, this.view),
         id: n.id,
         title: n.title,
-        radius: Math.max(2.5, nodeRadius(n) * frame.zoom),
+        radius: nodeScreenRadius(n, frame.zoom),
         priority:
           n.id === this.selected
             ? 1000
@@ -464,6 +476,15 @@ export class GraphScene {
     const f = this.motion.frame,
       bounds = usable(this.view, f.drawer),
       nodes = this.projected(f);
+    if (this.lightCanvas)
+      this.light.render(
+        this.lightCanvas,
+        this.topology.data.nodes,
+        this.colors,
+        f,
+        this.view,
+        this.lightDensity(),
+      );
     ctx.save();
     const ratio = ctx.canvas.width / this.view.width;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
@@ -490,7 +511,7 @@ export class GraphScene {
       ctx.textBaseline = "middle";
       for (const c of captions) {
         ctx.fillStyle = c.color;
-        ctx.globalAlpha = 0.72;
+        ctx.globalAlpha = 0.96;
         ctx.fillText(c.text, c.x, c.y + c.height / 2);
       }
       ctx.globalAlpha = 1;
@@ -575,35 +596,89 @@ export class GraphScene {
       }
     ctx.restore();
   }
+  private lightDensity() {
+    return Math.max(
+      0.45,
+      Math.min(1, 12 / Math.sqrt(Math.max(1, this.topology.data.nodes.length))),
+    );
+  }
+  isInteractive(n: SceneNode) {
+    return inside(
+      project(n, this.motion.frame, this.view),
+      usable(this.view, this.motion.frame.drawer),
+    );
+  }
+  drawEdge(
+    edge: { source?: unknown; target?: unknown },
+    ctx: CanvasRenderingContext2D,
+    scale: number,
+  ) {
+    const a = this.topology.positions.get(idOf(edge.source)),
+      b = this.topology.positions.get(idOf(edge.target));
+    if (!a || !b) return;
+    const same = a.subject_id === b.subject_id,
+      active = this.related.has(a.id) && this.related.has(b.id);
+    const color = this.colors.get(a.subject_id) ?? "#95a6b8";
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(a.x ?? 0, a.y ?? 0);
+    ctx.lineTo(b.x ?? 0, b.y ?? 0);
+    if (same) {
+      ctx.strokeStyle = lightColor(
+        color,
+        (active ? 0.19 : 0.085) * this.lightDensity(),
+      );
+      ctx.lineWidth = (active ? 3.4 : 2.5) / scale;
+      ctx.stroke();
+    }
+    ctx.strokeStyle = same
+      ? lightColor(color, active ? 0.84 : 0.45)
+      : active
+        ? "#a5c3d08c"
+        : "#839aaf3b";
+    ctx.lineWidth = (active ? 1.15 : same ? 0.85 : 0.65) / scale;
+    ctx.stroke();
+    ctx.restore();
+  }
   drawNode(n: SceneNode, ctx: CanvasRenderingContext2D, scale: number) {
     const color = this.colors.get(n.subject_id) ?? "#95a6b8",
-      r = Math.max(nodeRadius(n), 2.5 / scale),
+      r = nodeScreenRadius(n, scale) / scale,
       x = n.x ?? 0,
       y = n.y ?? 0;
     const active = n.id === this.selected || n.id === this.hover;
-    ctx.globalAlpha =
+    const connected = this.related.has(n.id);
+    ctx.save();
+    const alpha =
       (this.query &&
         !`${n.title} ${n.id}`
           .toLowerCase()
           .includes(this.query.toLowerCase())) ||
       (this.hover && !this.related.has(n.id))
-        ? 0.25
+        ? 0.38
         : 1;
-    ctx.fillStyle = color + "12";
-    ctx.beginPath();
-    ctx.arc(x, y, r + 3 / scale, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = color + (active ? "b8" : "55");
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 0.8 / scale;
+    const halo = r * (active ? 3.2 : 2.8);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = alpha * this.lightDensity() * (connected ? 1 : 0.85);
+    ctx.drawImage(
+      this.light.texture(color),
+      x - halo,
+      y - halo,
+      halo * 2,
+      halo * 2,
+    );
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = litColor(color, active ? 0.23 : connected ? 0.2 : 0.12);
+    ctx.strokeStyle = litColor(color, 0.42);
+    ctx.lineWidth = 0.65 / scale;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = active ? "#f0f8ff" : color;
+    ctx.fillStyle = litColor(color, active ? 0.88 : connected ? 0.8 : 0.7);
     ctx.beginPath();
-    ctx.arc(x, y, Math.max(0.8, r * 0.32), 0, Math.PI * 2);
+    ctx.arc(x, y, r * (active ? 0.46 : 0.34), 0, Math.PI * 2);
     ctx.fill();
-    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 }

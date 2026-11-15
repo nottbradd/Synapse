@@ -48,7 +48,7 @@ impl Default for History {
         }
     }
 }
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Rating {
     Again,
@@ -56,16 +56,46 @@ pub enum Rating {
     Good,
     Easy,
 }
-pub fn parse(note: &Note, content: &str) -> Vec<Card> {
-    let body = notes::body(content).map(|(_, b)| b).unwrap_or("");
+#[derive(Debug, Clone, Serialize)]
+pub struct RecallBlock {
+    pub content_id: String,
+    pub question: String,
+    pub answer: String,
+    // UTF-16 offsets into Presentation.body, matching Markdown's JS positions.
+    pub start: usize,
+    pub end: usize,
+}
+#[derive(Debug, Serialize)]
+pub struct Presentation {
+    pub body: String,
+    pub recalls: Vec<RecallBlock>,
+}
+pub fn presentation(content: &str) -> Result<Presentation> {
+    let (_, body) = notes::body(content)?;
+    Ok(Presentation {
+        body: body.into(),
+        recalls: extract(body),
+    })
+}
+fn extract(body: &str) -> Vec<RecallBlock> {
     let safe = notes::prose(body, false);
     let clean = notes::prose(body, true);
     let lines: Vec<_> = safe.lines().collect();
     let clean_lines: Vec<_> = clean.lines().collect();
+    let raw: Vec<_> = body.split_inclusive('\n').collect();
+    let mut offset = 0;
+    let offsets: Vec<_> = raw
+        .iter()
+        .map(|line| {
+            let start = offset;
+            offset += line.encode_utf16().count();
+            start
+        })
+        .collect();
     let mut cards = Vec::new();
-    let mut seen = BTreeSet::new();
     let mut i = 0;
     while i < lines.len() {
+        let first = i;
         let line = lines[i].trim();
         let mut pair = None;
         if let Some(q) = line.strip_prefix("Q: ").filter(|_| {
@@ -103,23 +133,92 @@ pub fn parse(note: &Note, content: &str) -> Vec<Card> {
             if !question.trim().is_empty() && !answer.trim().is_empty() {
                 let norm = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
                 let id = notes::hash(&format!("{}\u{0}{}", norm(&question), norm(&answer)));
-                if seen.insert(id.clone()) {
-                    cards.push(Card {
-                        content_id: id.clone(),
-                        id,
-                        subject_id: note.subject_id.clone(),
-                        neuron_id: note.neuron_id.clone(),
-                        source: note.id.clone(),
-                        subject: note.subject,
-                        question,
-                        answer,
-                    });
-                }
+                cards.push(RecallBlock {
+                    content_id: id,
+                    question,
+                    answer,
+                    start: offsets[first]
+                        + raw[first]
+                            .chars()
+                            .take_while(|c| c.is_whitespace())
+                            .map(char::len_utf16)
+                            .sum::<usize>(),
+                    end: offsets[i] + raw[i].trim_end().encode_utf16().count(),
+                });
             }
         }
         i += 1;
     }
     cards
+}
+pub fn parse(note: &Note, content: &str) -> Vec<Card> {
+    let body = notes::body(content).map(|(_, b)| b).unwrap_or("");
+    let mut seen = BTreeSet::new();
+    extract(body)
+        .into_iter()
+        .filter(|c| seen.insert(c.content_id.clone()))
+        .map(|c| Card {
+            id: c.content_id.clone(),
+            content_id: c.content_id,
+            subject_id: note.subject_id.clone(),
+            neuron_id: note.neuron_id.clone(),
+            source: note.id.clone(),
+            subject: note.subject,
+            question: c.question,
+            answer: c.answer,
+        })
+        .collect()
+}
+
+#[derive(Debug, Serialize)]
+pub struct RatingPreview {
+    pub rating: Rating,
+    pub due: i64,
+    pub interval_seconds: i64,
+}
+#[derive(Debug, Serialize)]
+pub struct RatingPreviews {
+    pub card_id: String,
+    pub reference_time: i64,
+    pub options: Vec<RatingPreview>,
+}
+pub fn previews(id: &str, old: Option<&Review>, now: i64) -> RatingPreviews {
+    RatingPreviews {
+        card_id: id.into(),
+        reference_time: now,
+        options: [Rating::Again, Rating::Hard, Rating::Good, Rating::Easy]
+            .into_iter()
+            .map(|rating| {
+                let next = schedule(id, old, rating, now);
+                RatingPreview {
+                    rating,
+                    due: next.due,
+                    interval_seconds: next.due - now,
+                }
+            })
+            .collect(),
+    }
+}
+// Both paths load the same validated history; preview never migrates, scans or writes.
+pub fn preview_at(root: &Path, id: &str, now: i64) -> Result<RatingPreviews> {
+    let (history, _) = load(root)?;
+    Ok(previews(id, history.cards.get(id), now))
+}
+pub fn rate_at(root: &Path, id: &str, rating: Rating, now: i64) -> Result<Review> {
+    let (mut history, revision) = load(root)?;
+    if history.cards.get(id).is_some_and(|r| r.due > now) {
+        return Err(Error::new("card", "This card is not due yet."));
+    }
+    let next = schedule(id, history.cards.get(id), rating, now);
+    history.cards.insert(id.into(), next.clone());
+    vault::atomic_write(
+        root,
+        "flashcards.json",
+        &serde_json::to_string_pretty(&history)?,
+        revision.as_deref(),
+        false,
+    )?;
+    Ok(next)
 }
 pub fn schedule(id: &str, old: Option<&Review>, rating: Rating, now: i64) -> Review {
     let mut r = old.cloned().unwrap_or(Review {

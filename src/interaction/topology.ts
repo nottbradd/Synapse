@@ -16,28 +16,61 @@ export const idOf = (value: unknown) =>
     ? String(value.id)
     : String(value);
 export const nodeRadius = (n: Note) =>
-  Math.min(6, 3.1 + Math.sqrt(n.neighbors) * 0.38);
+  Math.min(9.4, 4.3 + Math.sqrt(n.neighbors) * 0.85);
+export const nodeScreenRadius = (n: Note, zoom: number) =>
+  nodeRadius(n) *
+  Math.max(0.8, Math.min(1.15, 0.94 + Math.log2(Math.max(0.1, zoom)) * 0.08));
 function hash(text: string) {
   let n = 0;
   for (const c of text) n = (Math.imul(n, 31) + c.charCodeAt(0)) | 0;
   return n >>> 0;
 }
+// Frame every small subject, trimming only unusually distant points inside a
+// large cluster. Fit all bypasses this, so deliberate pins/orphans stay reachable.
+export function compositionNodes(nodes: SceneNode[]) {
+  const groups = new Map<string, SceneNode[]>();
+  for (const n of nodes) {
+    if (!groups.has(n.subject_id)) groups.set(n.subject_id, []);
+    groups.get(n.subject_id)!.push(n);
+  }
+  return [...groups.values()].flatMap((group) => {
+    if (group.length <= 12) return group;
+    const xs = group.map((n) => n.x ?? 0).sort((a, b) => a - b),
+      ys = group.map((n) => n.y ?? 0).sort((a, b) => a - b),
+      trim = Math.floor(group.length * 0.05);
+    return group.filter(
+      (n) =>
+        (n.x ?? 0) >= xs[trim] &&
+        (n.x ?? 0) <= xs[xs.length - 1 - trim] &&
+        (n.y ?? 0) >= ys[trim] &&
+        (n.y ?? 0) <= ys[ys.length - 1 - trim],
+    );
+  });
+}
 export class GraphTopology {
   positions = new Map<string, SceneNode>();
   anchors = new Map<string, { x: number; y: number }>();
   key = "";
+  layoutChanged = true;
+  private laidOutKey = "";
   data: { nodes: SceneNode[]; links: SceneLink[] } = { nodes: [], links: [] };
   update(snapshot: Snapshot) {
-    for (const subject of [...snapshot.organization.subjects].sort((a, b) =>
-      a.id.localeCompare(b.id),
-    ))
+    const layoutKey = JSON.stringify([
+      snapshot.notes.map((n) => [n.id, n.subject_id]),
+      snapshot.edges,
+    ]);
+    let introduced = false;
+    const occupied = new Set(snapshot.notes.map((n) => n.subject_id));
+    for (const subject of snapshot.organization.subjects
+      .filter((s) => occupied.has(s.id))
+      .sort((a, b) => a.id.localeCompare(b.id)))
       if (!this.anchors.has(subject.id)) {
         const i = this.anchors.size,
           angle = i * 2.3999632297,
-          spread = Math.sqrt(i) * 360;
+          spread = Math.sqrt(i) * 100;
         this.anchors.set(subject.id, {
-          x: Math.cos(angle) * spread,
-          y: Math.sin(angle) * spread,
+          x: Math.cos(angle) * spread * 1.12,
+          y: Math.sin(angle) * spread * 0.9,
         });
       }
     const existing = new Set(snapshot.notes.map((n) => n.id));
@@ -54,6 +87,7 @@ export class GraphTopology {
         const anchor = this.anchors.get(n.subject_id) ?? { x: 0, y: 0 },
           h = hash(n.id),
           angle = h * 0.001;
+        introduced = true;
         const node = {
           ...n,
           x: anchor.x + Math.cos(angle) * (35 + (h % 95)),
@@ -69,6 +103,8 @@ export class GraphTopology {
     const key = JSON.stringify([nodes.map((n) => [n.id, n.subject_id]), links]);
     if (this.key !== key) {
       this.key = key;
+      this.layoutChanged = introduced || layoutKey !== this.laidOutKey;
+      if (this.layoutChanged) this.laidOutKey = layoutKey;
       this.data = { nodes, links: links.map((e) => ({ ...e })) };
     }
     return this.data;

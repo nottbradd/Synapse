@@ -1,62 +1,85 @@
-# Synapse 0.3 validation
+# Synapse 0.3.1 validation
 
-Executed on Windows x64 on 15 November 2026 (Australia/Sydney), using synthetic temporary vaults. Personal study files were not used. The 0.2 validation record remains in Git history. The Rust data model and scheduler are unchanged.
+Executed on Windows x64 on 15 November 2026 (Australia/Sydney), using synthetic temporary vaults. Personal study files were not used. Previous validation records remain in Git history. This refinement extends presentation and preview APIs without changing stored identities, history schemas or scheduling rules.
 
 ## Automated checks
 
-| Check | Result |
-| --- | --- |
-| TypeScript typecheck and ESLint | Passed |
-| Frontend unit tests | 38 passed |
-| Rust unit tests | 18 passed |
-| Rust formatting and Clippy with warnings denied | Passed |
-| npm audit | 0 vulnerabilities |
-| Production Vite/Rust/NSIS build | Passed |
+| Check                                           | Result            |
+| ----------------------------------------------- | ----------------- |
+| TypeScript typecheck and ESLint                 | Passed            |
+| Frontend unit tests                             | 46 passed         |
+| Rust unit tests                                 | 21 passed         |
+| Rust formatting and Clippy with warnings denied | Passed            |
+| npm audit                                       | 0 vulnerabilities |
+| Production Vite/Rust/NSIS build                 | Passed            |
 
-New tests cover exact critically damped integration, rest/settling, continuous reversal, shared drawer/camera progress, log zoom, no secondary drift, measured usable-centre projection, reduced motion, outlier-inclusive fitting, forced label flips in both directions, upper-arc clearance, hysteresis, relative anchoring, constant label width, ring timing, font measurement invalidation, signal durations/arrival/cancellation, hub bounds, polyphony, priority and repeated-cue gates, future reservations, native-focus dominance, audio lifecycle and preference persistence. Regression tests cover hidden-label radius settling and clear placement when a new or previously hidden label becomes selected. Existing WikiLink, archive, recovery, containment, Unicode, subject-identity and scheduler checks remain.
+New coverage checks canonical recall recognition and UTF-16 source ranges, CRLF/BOM/emoji input, original content hashes, duplicate occurrences, Markdown containers and adjacent prose, nonrecursive answer rendering, and exact agreement between all four previews and committed scheduling results at a fixed time for new and mature cards. Preview tests verify unchanged history bytes, no creation of missing history, no legacy migration and no replacement of malformed history. Graph tests cover bounded CSS-pixel radii, occupied-subject composition, outlier fitting and stable positions across scope changes. Existing motion, label, audio, WikiLink, containment, transfer, recovery and identity tests remain.
 
-The build retains a Vite bundle-size advisory: approximately 1.50 MB JavaScript before compression, 488 KB compressed. Fonts and their OFL licenses are embedded locally. The application and installer are unsigned.
+The production bundle retains a Vite size advisory: approximately 1.51 MB JavaScript before compression, 491 KB compressed. Fonts and their OFL licenses remain embedded locally. The executable and installer are unsigned.
 
 ## Real desktop checks
 
-The updated Tauri development executable and final packaged executable were exercised through their actual WebViews and Rust IPC. The production URL was `http://tauri.localhost/`. Tests used temporary vaults with 97 notes, multiple Neurons, duplicate Physics subjects with independent progress, custom subject colours and a 90-note dense cluster.
+The Tauri development executable and packaged 0.3.1 executable were exercised through their actual WebViews and Rust IPC. The packaged URL was `http://tauri.localhost/`. Integration fixtures include 97 notes, multiple Neurons, duplicate Physics subjects with independent progress, a custom subject and a 90-note dense cluster. The final production build also supplied the eight after screenshots and the recording.
 
-- Creation, Neuron/subject scoping, Read/Split/Edit, safe save, dirty-navigation and window-close guards passed.
-- External-change conflict detection and explicit Keep my edits recovery passed. A matching Markdown H1 is hidden only in Read presentation; note bytes remain intact.
-- KaTeX, WikiLinks and explicit missing-note creation passed. Offline reload, reading, editing, saving and reviews passed in the packaged executable.
-- Subject review isolation passed. Actual Again/Good interactions emitted forgot/remembered events and no completion while awaiting a retry. An empty session emitted no completion event.
-- Imports/exports passed through the real Rust implementation: package/folder inputs, attachments, name conflicts, history opt-ins, malformed input and cancellation. Only the native chooser response was substituted in this automated transfer pass. Rust tests additionally cover archive limits, escapes, malformed metadata and publication recovery.
-- Full-process restart retained Sound off and 27% volume. Defaults were restored to Sound on and 35% after the check. Vault and selected scope restoration also passed.
-- Modal Escape and focus restoration, empty states, reduced-motion handling and the opaque glass fallback passed.
-- No JavaScript exceptions or console errors were recorded by the successful desktop regression runs.
+- Creation, Neuron/subject scoping, Read/Split/Edit, safe save, dirty-navigation and window-close guards passed. External-change conflict detection and explicit Keep my edits recovery passed.
+- Read-mode recall passed Space/Enter interaction, expanded state and keyboard focus, initial answer hiding, Markdown/WikiLink/KaTeX answers, reset on note/card changes and retention on an ordinary refresh. Neither reveal nor preview changed source/history bytes or created history. Review retained its separate reveal.
+- Review previews displayed actual new-card intervals (1 min, 12 hr, 1 day, 4 days), refreshed after a mature-history update and matched a subsequent 25-day Good commit. Rating before reveal was blocked; repeated rapid rating input committed once.
+- KaTeX, WikiLinks, explicit missing-note creation, offline reload, reading, editing, saving and reviews passed in the packaged executable.
+- Subject review isolation, hierarchy edits, responsive layouts and transfer regression checks passed. Transfer tests used the real Rust package/folder/attachment/conflict/history/validation paths; only native chooser responses were substituted in that automated pass. Rust tests retain archive, path and interrupted-publication checks.
+- Modal Escape/focus restoration, empty states, reduced motion and the actual opaque fallback material passed. Successful desktop regression runs recorded no JavaScript exceptions or console errors.
 
-The production graph's Canvas image was byte-identical after an ordinary body-only filesystem update. The check waits for the spring to settle, then compares Canvas pixels directly; an element screenshot also captures HTML title transitions above the Canvas and is not an isolated graph comparison. Development instrumentation separately verified identical node coordinates and camera frames after a watcher update.
+Both production Canvas layers were byte-identical after an ordinary body-only filesystem update once settled. Development instrumentation separately verified unchanged node coordinates and camera frames. Scope-only changes retained settled coordinates and restored the overview exactly; explicit dragging still updates node positions.
+
+Native folder selection was exercised in the actual Windows dialog and restored genuine native focus before recording. The Open/Save/import/export native dialog checks from the preceding 0.3.0 pass remain documented in Git history; this pass does not represent the automated chooser substitutions as fresh native-dialog coverage. No security setting or ACL was changed.
 
 ## Motion and audio
 
-The actual scene's selected-node projection matched the measured uncovered centre with 0 px horizontal and vertical error in the tested 1600 px layout. Rapid close/open reversal settled without a later frame change. Runtime reduced motion reached the same destination immediately. Once settled, an instrumented one-second idle interval recorded zero Canvas draw calls.
+The selected node matched the measured uncovered centre with 0 px horizontal and vertical error at the tested 1600 px layout. Rapid reversal settled without later drift. Runtime reduced motion snapped to the destination. A settled one-second interval recorded zero Canvas draw calls. The light and geometry layers share the same transform, DPR and animation clock.
 
-The production label state was exercised in the actual Canvas with the camera pinned and the placement rectangle constrained, then restored. Target angles changed 0 → pi → 0, with the camera frame unchanged. Unit tests additionally inspect upper-arc clearance at intermediate frames and node-relative offsets during camera movement.
+Two complementary label checks passed. With placement constraints controlled, the actual development scene changed targets 0 → pi → 0 while its camera stayed fixed. Separately, a real pointer drag moved a selected node from (692, 502) to (1000, 340), producing a visible right-to-left transition with an unchanged camera and no placement override. The packaged recording uses a longer drag into the clear upper area at (1000, 180), showing the final label on the left. Unit tests also inspect intermediate upper-arc clearance, hysteresis, cooldown and node-relative offsets.
 
-OfflineAudioContext rendered the actual synth at 48 kHz. The default-volume contact peaked at 0.028413 (about -30.9 dBFS); a six-voice mix at maximum volume peaked at 0.093039 (about -20.6 dBFS). Thirty simultaneous requests admitted six voices. Muted and cancelled renders were exactly silent. Every completed/cancelled render left zero active sources and reservations. These measurements do not substitute for subjective timbre assessment.
+The sound implementation was retained. OfflineAudioContext rendered the actual synth at 48 kHz: default contact peak 0.028413 (about -30.9 dBFS), maximum-volume six-voice mix 0.093039 (about -20.6 dBFS). Thirty simultaneous requests admitted six voices. Muted/cancelled renders were silent, with zero remaining sources and reservations. Preference reload, native-focus gating, cancellation and disposal remain covered. These measurements do not establish perceived timbre.
 
-Native minimize testing cancelled queued contacts and muted the synth. A later DOM focus event left native focus false and audio muted, with zero reservations. Unit tests cover returning focus without replaying a backlog, stale arrivals and context disposal. Audio timing uses the same frozen packet arrival plan, with no setTimeout-based audio queue.
+## Visual comparison
 
-## Visual evidence and boundaries
+The approved luminous graph mockup, later typography screenshot, motion reference and previous application recording were inspected. Actual screenshots were compared directly during iteration of node optics, edge contrast, cluster spacing, fitting, material tint and scene-derived light. The final overview has distinct bright cores and coloured connections; cluster light continues behind glass while interactive geometry is clipped away from obstructed areas. Reading text remains opaque and crisp.
 
-The actual native Windows app was inspected at the current 100% display setting. WebView viewport tests covered 900×600, 1440×900 and 1600×1000 layouts. Density emulation at 1000×700 and DPR 1.5/2 allocated 1500/2000-pixel Canvas backing stores with no horizontal page overflow. This is WebView density emulation, not an actual Windows DPI switch or multi-monitor transition test.
+The before and after passes use the same synthetic fixture identities and viewport. The overview contains 32 notes across five occupied subjects. The separate dense view contains 90 notes. Eight pairs are retained under `.local/refinement-before/` and `.local/refinement-after/`:
 
-Actual application screenshots and reports are retained under ignored `.local/`. The separate 32-note capture vault is clearly named `Synapse release verification` and contains synthetic notes. A 14.21-second recording of the final packaged executable captured 222 source frames and its live Web Audio output during selection, WikiLink navigation, subject focus and a successful review session. The 1600×1000 H.264/AAC MP4 is `.local/Synapse-0.3.0-demo.mp4`; decoded audio peaked at -25.5 dBFS and was non-silent. The capture taps only the app's final audio output, without microphone or desktop audio access. No prototype footage or replacement sound track is used.
+- `overview.png`: small multi-subject overview.
+- `drawer.png`: same graph with note drawer and recall.
+- `subject.png`: focused subject.
+- `review.png`: review dialog and scheduler intervals.
+- `dense.png`: dense cluster.
+- `small.png`: 900 × 600 window.
+- `reduced-motion.png`: reduced spatial motion.
+- `opaque-fallback.png`: solid fallback material.
 
-Native folder selection, subject export through the Save dialog, package selection through the Open dialog, valid import preview and cancellation were verified in the Tauri development executable. Folder selection also passed in the final production executable. After the helper reported unavailable child indexes, keyboard navigation and screenshot coordinates completed the real dialogs without substituting their responses. The exported eight-note Physics package was nonempty and cancellation left the subject registry unchanged. Completing the native folder dialog restored genuine native focus for the production recording. No security setting or ACL was changed. The user-dismissed firewall prompt from the previous session was not automated.
+All other views use 1600 × 1000. `.local/Synapse-0.3.1-comparison.html` embeds the 16 original screenshots without image editing; all images were loaded and checked in Edge. The native Windows display remained at 100%. WebView density emulation at 1000 × 700 and DPR 1.5/2 allocated 1500/2000-pixel backing widths for both Canvas layers, without horizontal overflow. This is not an actual Windows DPI switch or multi-monitor test.
 
-Subjective listening is unverified because the available execution environment does not support audio input. The synth was inspected, rendered, level-checked and supplied for playback; no claim of a human listening comparison is made. Multi-hour use, every keyboard path and actual multi-monitor DPI transitions remain outside this focused pass.
+## Actual application recording
 
-## Artifacts
+`.local/Synapse-0.3.1-demo.mp4` is 17.78 seconds of the final packaged executable, 1600 × 1000 H.264/AAC. It includes overview, drawer opening/closing, keyboard recall reveal, a real label-side-change drag, subject focus/return and successful review grading. The app was natively focused. Audio was recorded from its final live Web Audio output without microphone/desktop capture or a replacement soundtrack. Decoded audio peak was -24.8 dBFS (mean -57.4 dBFS including silence), with no clipping.
 
-- Executable: `src-tauri/target/release/synapse.exe` — 13,764,608 bytes
-- Installer: `src-tauri/target/release/bundle/nsis/Synapse_0.3.0_x64-setup.exe` — 4,361,715 bytes
-- Executable SHA-256: `c771d09fb5a3003ff0991305b926caff5860bed793e695a4e1b573dcd77cce50`
-- Installer SHA-256: `34a45122b759fd4cc64b339876273a957ece74d7733d8cfcbf75721fdc7ba556`
+The capture uses every delivered compositor frame (`everyNthFrame: 1`), not every third frame. Its source timestamps and image hashes were checked; 841 source frames contained 827 consecutive distinct images and 14 identical consecutive images. Source timestamps were strictly increasing. The MP4 decodes to all 841 source frames, with maximum timestamp difference 0.88 ms from the original capture after millisecond quantisation. Edge decoded and sought the file successfully. No interpolated motion frames were generated.
 
-GitHub remains private. Hosted CI status must be checked against the delivered commit; local results do not imply a hosted run has finished.
+| Recorded action                    | Source frames/s | Distinct frames/s | Median gap | 95th-percentile gap |
+| ---------------------------------- | --------------: | ----------------: | ---------: | ------------------: |
+| Drawer opening                     |           85.74 |             85.74 |   12.12 ms |            24.19 ms |
+| Real pointer drag and label change |           74.24 |             73.68 |   12.14 ms |            24.26 ms |
+| Drawer closing                     |           94.53 |             94.53 |   12.11 ms |            18.21 ms |
+| Subject focus                      |           99.65 |             99.65 |   12.09 ms |            12.18 ms |
+| Subject return                     |           97.34 |             97.34 |   12.08 ms |            12.26 ms |
+
+These are measured variable capture rates during the listed action windows, not a claim of perfectly locked 60 fps. Some intervals exceed 16.7 ms. Static recall reveal delivered one frame and completion delivered four; sparse static updates and idle pauses are expected. Whole-video average or container metadata does not measure transition fluidity. Raw timestamps, action windows and cadence are retained in `.local/refinement-frame-timestamps.json` and `.local/refinement-capture-report.json`.
+
+Subjective listening remains unverified: the available execution environment cannot perform a listening comparison. The actual audio was captured, decoded and level-checked for user playback, with the approved synth unchanged. Multi-hour usage, every keyboard path and actual multi-monitor DPI transitions remain outside this focused pass.
+
+## Build artifacts
+
+- Executable: `src-tauri/target/release/synapse.exe` — 13,817,344 bytes.
+- Installer: `src-tauri/target/release/bundle/nsis/Synapse_0.3.1_x64-setup.exe` — 4,376,754 bytes.
+- Executable SHA-256: `1eaae67392b0d078e37259e4fc117ca8ddbaab914c13c60832814d86631d9e68`.
+- Installer SHA-256: `6ca63a5df5c2736d498cc5139be1c83a8ad4f26f634f9e5b28264e441ac6b0a8`.
+
+Artifacts and synthetic evidence remain local and ignored by Git. GitHub remains private. Hosted CI status is checked against the delivered commit separately from local validation.

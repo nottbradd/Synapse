@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Editor from "./Editor";
 import Markdown from "./Markdown";
+import NoteReading from "./NoteReading";
 import TransitionTitle from "./TransitionTitle";
 import { feedback } from "../interaction/events";
 import type { Workspace } from "../hooks/useWorkspace";
@@ -184,11 +185,16 @@ export default function EditorPanel({
         )}{" "}
         {mode !== "edit" && (
           <div className="preview">
-            <Markdown
-              text={text}
-              onWiki={wiki}
-              omitTitle={mode === "read" ? selected?.title : undefined}
-            />
+            {mode === "read" ? (
+              <NoteReading
+                key={doc.id}
+                text={text}
+                title={selected?.title}
+                onWiki={wiki}
+              />
+            ) : (
+              <Markdown text={text} onWiki={wiki} />
+            )}
           </div>
         )}
       </div>

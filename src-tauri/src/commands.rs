@@ -341,6 +341,38 @@ pub async fn refresh_vault(state: State<'_, Backend>, vault_root: String) -> Res
     .await
 }
 #[tauri::command]
+pub fn present_note(content: String) -> Result<flashcards::Presentation> {
+    flashcards::presentation(&content)
+}
+fn clock() -> Result<i64> {
+    Ok(SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| Error::new("clock", e))?
+        .as_secs() as i64)
+}
+#[tauri::command]
+pub async fn preview_ratings(
+    state: State<'_, Backend>,
+    vault_root: String,
+    id: String,
+) -> Result<flashcards::RatingPreviews> {
+    work(&state, move |i| {
+        let root = root(i, &vault_root)?;
+        if !i
+            .snapshot
+            .as_ref()
+            .is_some_and(|s| s.cards.iter().any(|c| c.id == id))
+        {
+            return Err(Error::new(
+                "card",
+                "This card changed or was removed. Refresh your session.",
+            ));
+        }
+        flashcards::preview_at(&root, &id, clock()?)
+    })
+    .await
+}
+#[tauri::command]
 pub async fn rate_card(
     state: State<'_, Backend>,
     vault_root: String,
@@ -356,25 +388,7 @@ pub async fn rate_card(
                 "This card changed or was removed. Refresh your session.",
             ));
         }
-        let (mut history, revision) = flashcards::load(&root)?;
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|e| Error::new("clock", e))?
-            .as_secs() as i64;
-        if history.cards.get(&id).is_some_and(|r| r.due > now) {
-            return Err(Error::new("card", "This card is not due yet."));
-        }
-        history.cards.insert(
-            id.clone(),
-            flashcards::schedule(&id, history.cards.get(&id), rating, now),
-        );
-        vault::atomic_write(
-            &root,
-            "flashcards.json",
-            &serde_json::to_string_pretty(&history)?,
-            revision.as_deref(),
-            false,
-        )?;
+        flashcards::rate_at(&root, &id, rating, clock()?)?;
         refresh(i, &root)
     })
     .await

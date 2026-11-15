@@ -80,6 +80,9 @@ expect(
 ).toContain("Offline save verified");
 await page.getByRole("button", { name: "Close note", exact: true }).click();
 await page.locator(".review-entry").click();
+await page
+  .getByLabel("Review subject", { exact: true })
+  .selectOption(qa.custom.id);
 await expect(page.locator(".review-content")).toContainText("Release term");
 await page.getByRole("button", { name: /Reveal answer/ }).click();
 await page.getByRole("button", { name: /Good 3/ }).click();
@@ -107,8 +110,9 @@ const zoom = await page.locator(".graph-controls>span").innerText();
 // overlaid HTML (including independently animated titles), not just the graph.
 const before = await page
   .locator(".graph canvas")
-  .first()
-  .evaluate((c) => c.toDataURL());
+  .evaluateAll((canvases) =>
+    JSON.stringify(canvases.map((c) => c.toDataURL())),
+  );
 const notePath = path.join(qa.root, qa.dense.root, "Concept 0.md");
 await writeFile(
   notePath,
@@ -117,8 +121,9 @@ await writeFile(
 await page.waitForTimeout(1500);
 const after = await page
   .locator(".graph canvas")
-  .first()
-  .evaluate((c) => c.toDataURL());
+  .evaluateAll((canvases) =>
+    JSON.stringify(canvases.map((c) => c.toDataURL())),
+  );
 expect(await page.locator(".graph-controls>span").innerText()).toBe(zoom);
 if (before !== after)
   throw Error("Ordinary edit changed graph camera, positions or rendering");
@@ -150,10 +155,12 @@ for (const scale of [1.5, 2]) {
       height: innerHeight,
       dpr: devicePixelRatio,
       overflow: document.documentElement.scrollWidth > innerWidth,
-      canvasWidth: document.querySelector(".graph canvas").width,
+      canvasWidths: [...document.querySelectorAll(".graph canvas")].map(
+        (c) => c.width,
+      ),
     })),
   );
-  expect(scales.at(-1).canvasWidth).toBe(1000 * scale);
+  expect(scales.at(-1).canvasWidths).toEqual([1000 * scale, 1000 * scale]);
   await page.screenshot({
     path: path.resolve(`.local/release-scale-${scale}.png`),
   });
@@ -176,14 +183,15 @@ await page.getByRole("button", { name: "Fit graph", exact: true }).click();
 await page.screenshot({
   path: path.resolve(".local/release-reduced-motion.png"),
 });
-const style = await page.addStyleTag({
-  content:
-    ".glass{backdrop-filter:none!important;background:#252e35!important}",
-});
+await page.evaluate(() =>
+  document.documentElement.classList.add("opaque-materials"),
+);
 await page.screenshot({
   path: path.resolve(".local/release-opaque-fallback.png"),
 });
-await style.evaluate((e) => e.remove());
+await page.evaluate(() =>
+  document.documentElement.classList.remove("opaque-materials"),
+);
 const empty = path.resolve(".local", `empty-${Date.now()}`);
 await mkdir(empty);
 await invoke("open_vault", { path: empty });

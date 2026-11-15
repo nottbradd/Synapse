@@ -4,13 +4,12 @@ import {
   useRef,
   useState,
   type RefObject,
-  type CSSProperties,
 } from "react";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import { Focus, Minus, Plus, RotateCcw } from "lucide-react";
 import type { Snapshot } from "../types";
 import { GraphScene } from "../interaction/graphScene";
-import { idOf, nodeRadius, type SceneNode } from "../interaction/topology";
+import { nodeScreenRadius, type SceneNode } from "../interaction/topology";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 import TransitionTitle from "./TransitionTitle";
 export default function Graph({
@@ -37,6 +36,7 @@ export default function Graph({
     heading = useRef<HTMLElement>(null),
     controls = useRef<HTMLDivElement>(null),
     zoomText = useRef<HTMLSpanElement>(null);
+  const light = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<GraphScene | null>(null);
   if (!sceneRef.current) sceneRef.current = new GraphScene();
   const scene = sceneRef.current;
@@ -47,6 +47,7 @@ export default function Graph({
     reduced = useReducedMotion();
   const data = scene.topology.update(snapshot),
     topology = scene.topology.key;
+  const [dragLayout, setDragLayout] = useState("");
   useEffect(() => scene.attach(), [scene]);
   useEffect(() => {
     let frame = 0;
@@ -64,6 +65,8 @@ export default function Graph({
   }, []);
   useLayoutEffect(() => {
     scene.api = graph.current;
+    scene.lightCanvas = light.current;
+    scene.container = container.current;
     scene.drawer = drawer.current;
     scene.heading = heading.current;
     scene.controls = controls.current;
@@ -101,30 +104,30 @@ export default function Graph({
     <div
       className="graph"
       ref={container}
-      style={
-        {
-          "--mask-start": `${left - 16}px`,
-          "--mask-end": `${left + 80}px`,
-        } as CSSProperties
-      }
       onPointerMove={scene.wake}
       onPointerDown={scene.wake}
       onWheel={scene.wake}
       onPointerLeave={() => scene.setHover()}
     >
+      <canvas className="graph-light" aria-hidden="true" ref={light} />
       <ForceGraph2D
         ref={graph}
         width={size.width}
         height={size.height}
         graphData={data}
-        backgroundColor="#091017"
+        backgroundColor="rgba(0,0,0,0)"
         nodeId="id"
         nodeLabel=""
         autoPauseRedraw={false}
-        onNodeClick={(n) => onOpen(n.id)}
-        onNodeHover={(n) => scene.setHover(n?.id)}
+        onNodeClick={(n) => {
+          if (scene.isInteractive(n)) onOpen(n.id);
+        }}
+        onNodeHover={(n) =>
+          scene.setHover(n && scene.isInteractive(n) ? n.id : undefined)
+        }
         onZoom={() => scene.manual()}
         onNodeDrag={() => {
+          if (dragLayout !== topology) setDragLayout(topology);
           scene.engine = true;
           scene.wake();
         }}
@@ -134,23 +137,25 @@ export default function Graph({
           scene.wake();
         }}
         onEngineStop={() => scene.engineStopped()}
-        cooldownTicks={90}
-        warmupTicks={80}
-        d3AlphaDecay={0.055}
-        linkColor={(l) =>
-          scene.related.has(idOf(l.source)) && scene.related.has(idOf(l.target))
-            ? "#75899788"
-            : "#667d9233"
+        cooldownTicks={
+          scene.topology.layoutChanged || dragLayout === topology ? 90 : 0
         }
-        linkWidth={0.65}
+        warmupTicks={scene.topology.layoutChanged ? 80 : 0}
+        d3AlphaDecay={0.055}
+        linkCanvasObject={(link, ctx, scale) =>
+          scene.drawEdge(link, ctx, scale)
+        }
+        linkCanvasObjectMode={() => "replace"}
         nodeCanvasObject={(n, ctx, scale) => scene.drawNode(n, ctx, scale)}
         nodePointerAreaPaint={(n, color, ctx) => {
+          if (!scene.isInteractive(n)) return;
           ctx.fillStyle = color;
           ctx.beginPath();
           ctx.arc(
             n.x ?? 0,
             n.y ?? 0,
-            Math.max(nodeRadius(n), 8 / scene.motion.frame.zoom),
+            Math.max(nodeScreenRadius(n, scene.motion.frame.zoom), 8) /
+              scene.motion.frame.zoom,
             0,
             Math.PI * 2,
           );

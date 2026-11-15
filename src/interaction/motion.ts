@@ -117,8 +117,8 @@ export function fitFrame(
     y: (minY + maxY) / 2,
     zoom: Math.min(
       2.2,
-      b.width / (maxX - minX + 100),
-      b.height / (maxY - minY + 110),
+      Math.max(40, b.width - 128) / Math.max(70, maxX - minX),
+      Math.max(40, b.height - 112) / Math.max(70, maxY - minY),
     ),
     drawer,
   };

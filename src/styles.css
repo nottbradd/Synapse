@@ -8,9 +8,15 @@
   color-scheme: dark;
   font-size: 14px;
   --canvas: #091017;
-  --surface: #131b23;
-  --glass: rgba(26, 35, 44, 0.77);
-  --glass-strong: rgba(24, 32, 41, 0.96);
+  --surface: rgba(8, 17, 24, 0.1);
+  --material-navigation: rgba(92, 108, 116, 0.18);
+  --material-reading: rgba(81, 99, 111, 0.2);
+  --material-floating: rgba(92, 108, 116, 0.22);
+  --material-dialog: rgba(65, 83, 94, 0.28);
+  --material-menu: rgba(28, 40, 49, 0.74);
+  --material-tint: var(--material-floating);
+  --material-solid: #202d37;
+  --material-blur: 24px;
   --text: #edf1f4;
   --muted: #aab8c2;
   --quiet: #82939f;
@@ -80,7 +86,7 @@ input,
 select,
 textarea {
   min-width: 0;
-  background: var(--canvas);
+  background: rgba(8, 16, 23, 0.5);
   color: var(--text);
   border: 1px solid var(--edge);
   border-radius: 5px;
@@ -161,17 +167,38 @@ summary {
   user-select: none;
 }
 .glass {
-  background: #1a232c;
+  background: var(--material-solid);
   box-shadow:
-    0 8px 32px #00000029,
-    inset 0 1px 0 var(--edge);
+    0 16px 44px #00000038,
+    inset 0 1px 0 #ecf6ff26,
+    inset 0 0 0 1px #dceeff12;
   border-radius: var(--radius);
 }
 @supports (backdrop-filter: blur(1px)) {
   .glass {
-    background: var(--glass);
-    backdrop-filter: blur(18px);
+    background: var(--material-tint);
+    backdrop-filter: blur(var(--material-blur)) saturate(150%);
   }
+}
+.sidebar {
+  --material-tint: var(--material-navigation);
+}
+.editor-shell {
+  --material-tint: var(--material-reading);
+  --material-blur: 28px;
+}
+.context-menu,
+.notification {
+  --material-tint: var(--material-menu);
+}
+.dialog,
+.review-dialog {
+  --material-tint: var(--material-dialog);
+  --material-blur: 32px;
+}
+:root.opaque-materials .glass {
+  background: var(--material-solid);
+  backdrop-filter: none;
 }
 .selectable,
 .select-text,
@@ -437,7 +464,6 @@ pre {
   padding: 6px;
   display: flex;
   flex-direction: column;
-  background: var(--glass-strong);
 }
 .context-menu > button {
   justify-content: flex-start;
@@ -589,7 +615,7 @@ pre {
   overflow: hidden;
   display: flex;
   background: var(--surface);
-  border-radius: 4px;
+  border-radius: 0;
 }
 .editor-body.split {
   display: grid;
@@ -832,7 +858,7 @@ pre {
   position: absolute;
   inset: 0;
   z-index: 20;
-  background: #060a0e88;
+  background: #050b123d;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -844,7 +870,6 @@ pre {
   max-height: calc(100dvh - 48px);
   overflow: auto;
   padding: 24px;
-  background: var(--glass-strong);
 }
 .dialog > header,
 .review-dialog > header {
@@ -992,8 +1017,8 @@ pre {
 }
 .review-content {
   padding: 24px;
-  background: var(--surface);
-  border-radius: 5px;
+  background: rgba(8, 17, 24, 0.14);
+  border-radius: 3px;
   max-height: 48vh;
   overflow: auto;
   min-height: 160px;
@@ -1035,7 +1060,38 @@ pre {
   color: var(--text);
 }
 .ratings small {
-  font-size: 11px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.interval-error {
+  width: 100%;
+  color: #f7b3aa;
+  font-size: 13px;
+}
+.recall-block {
+  margin: 24px 0;
+  padding: 18px 0 8px;
+  border-top: 1px solid var(--edge);
+}
+.recall-question .markdown > :last-child,
+.recall-answer .markdown > :last-child {
+  margin-bottom: 0;
+}
+.recall-toggle {
+  margin-top: 12px;
+  padding: 8px 10px;
+  background: #dceaff0c;
+  color: var(--text);
+  font-size: 13px;
+}
+.recall-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.recall-answer {
+  padding-top: 16px;
+}
+.recall-answer[hidden] {
+  display: none;
 }
 .review-complete {
   display: flex;
@@ -1069,7 +1125,6 @@ kbd {
   gap: 12px;
   max-width: min(720px, calc(100vw - 48px));
   padding: 16px;
-  background: var(--glass-strong);
   color: #f4d1b9;
 }
 .notification > div {
@@ -1156,13 +1211,17 @@ kbd {
   overflow: hidden;
 }
 
-/* Optical masking is confined to graph content, not a decorative background. */
-.graph canvas {
-  mask-image: linear-gradient(
-    to right,
-    transparent var(--mask-start),
-    black var(--mask-end)
-  );
+/* Geometry stays out of obstructed areas. Its data-derived illumination is a
+   separate, noninteractive layer and can diffuse continuously under glass. */
+.graph .force-graph-container {
+  clip-path: inset(0 var(--scene-right, 0px) 0 var(--scene-left, 304px));
+}
+.graph .graph-light {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 .brand {
   font-family: Manrope, "Segoe UI", sans-serif;
