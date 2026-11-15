@@ -1,15 +1,16 @@
 @import "tailwindcss";
+@import "./assets/fonts/fonts.css";
 :root {
-  font-family: "Segoe UI", system-ui, sans-serif;
+  font-family: Geist, "Segoe UI", system-ui, sans-serif;
   color: #edf1f4;
-  background: #14191d;
+  background: #091017;
   font-synthesis: none;
   color-scheme: dark;
   font-size: 14px;
-  --canvas: #14191d;
-  --surface: #1b2228;
-  --glass: rgba(35, 44, 51, 0.78);
-  --glass-strong: rgba(35, 44, 51, 0.94);
+  --canvas: #091017;
+  --surface: #131b23;
+  --glass: rgba(26, 35, 44, 0.77);
+  --glass-strong: rgba(24, 32, 41, 0.96);
   --text: #edf1f4;
   --muted: #aab8c2;
   --quiet: #82939f;
@@ -110,6 +111,7 @@ p {
 }
 h1,
 h2 {
+  font-family: Manrope, "Segoe UI", system-ui, sans-serif;
   font-weight: 600;
   line-height: 1.3;
 }
@@ -159,7 +161,7 @@ summary {
   user-select: none;
 }
 .glass {
-  background: #252e35;
+  background: #1a232c;
   box-shadow:
     0 8px 32px #00000029,
     inset 0 1px 0 var(--edge);
@@ -1152,4 +1154,56 @@ kbd {
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
+}
+
+/* Optical masking is confined to graph content, not a decorative background. */
+.graph canvas {
+  mask-image: linear-gradient(
+    to right,
+    transparent var(--mask-start),
+    black var(--mask-end)
+  );
+}
+.brand {
+  font-family: Manrope, "Segoe UI", sans-serif;
+  font-weight: 650;
+}
+.title-transition {
+  display: grid;
+  position: relative;
+}
+.title-transition > span {
+  grid-area: 1 / 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.title-transition > span[aria-hidden] {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.graph-heading h1 .title-transition,
+.graph-heading h1 .title-transition > span {
+  font: inherit;
+  color: inherit;
+}
+.editor-shell {
+  will-change: transform;
+}
+.review-entry > span,
+.graph-controls > span,
+.review-meta,
+.editor-status {
+  font-variant-numeric: tabular-nums;
+}
+.preferences .check-option {
+  flex-direction: row;
+  align-items: center;
+  color: var(--text);
+}
+.preferences input[type="range"] {
+  padding: 0;
+  width: 100%;
+  accent-color: #aac8de;
 }
