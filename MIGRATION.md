@@ -36,6 +36,10 @@ If a destination Neuron was explicitly created in the import flow and the subseq
 
 Metadata and note replacement use optimistic revision checks. They do not provide a cross-process lock against another editor or cloud sync client changing files in the last filesystem operation. Portable packages should be treated as transfer artifacts, not backups of an entire vault.
 
+## Motion preference (0.4.1)
+
+The device-local `synapse.preferences.v1` object gains an optional `motion` field: `system`, `full` or `reduced`. Existing version 1 preferences remain valid; a missing or unrecognised value follows Windows without changing Sound or Volume. Loading does not rewrite stored settings. A deliberate preference change persists the new field. This update does not change vault, review, study or package schemas.
+
 ## Study metadata and package schema 2 (0.4.0)
 
 `.synapse/study.json` schema 1 stores quizzes, quiz attempts, reminder definitions and delivery/catch-up state, generated-card source mappings and idempotent save receipts. Missing metadata means an empty library. Invalid or unsupported metadata is preserved and reported; it is not reset. This does not migrate or rewrite organization IDs or spaced-repetition history. Limits are 500 quizzes, 2,000 attempts, 500 reminders, 1,000 generated-card batches, 4,000 receipts and 8 MiB total metadata.

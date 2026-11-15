@@ -1,4 +1,25 @@
-# Synapse 0.4.0 validation
+# Synapse validation
+
+## 0.4.1 motion correction — 16 November 2026
+
+Windows reported `SPI_GETCLIENTAREAANIMATION=false`. After explicitly clearing Playwright's default media emulation, the installed WebView also reported `prefers-reduced-motion: reduce`. Following Windows therefore correctly skipped spatial animation, but the app provided no independent Full choice. Earlier normal-motion emulation masked this configuration.
+
+The installed-app regression also found that Graph's layout effect could retain a null drawer element on the first selection after launch/reload. The camera animated but the new drawer appeared immediately. Resolving the live drawer ref on the animation frame fixes that lifecycle case.
+
+Local validation passed:
+
+- TypeScript, ESLint and 54 frontend tests.
+- Rust formatting, Clippy with warnings denied, and 40 Rust tests; the explicit live API test remained ignored.
+- Production frontend/Rust build and NSIS packaging; installer completed with exit code 0.
+- Seven installed-app cases using `scripts/motion-desktop.mjs`: native Follow Windows, native Full, Full after reload, explicit Reduced, both live system-preference changes, and Full overriding a reduced-motion request.
+- Native Full produced 63 distinct intermediate drawer positions and 48 zoom steps; the first opening after reload produced 61 positions and 47 zoom steps. Reduced cases had no intermediate drawer positions and only their start/end zoom values.
+- Full persisted across reload. Existing Sound and Volume values were preserved, the original vault was restored, and the user's requested Full choice remained selected.
+
+The native cases run before any synthetic media changes, with no renderer replacement or API mocks. Synthetic study content stays in a temporary vault. Evidence is in ignored `.local/motion-0.4.1/report.json`, per-case frame samples, `follow-windows.png` and `full-motion.png`.
+
+The updated installer is `src-tauri/target/release/bundle/nsis/Synapse_0.4.1_x64-setup.exe`, SHA-256 `6AC6E3E73442905EA54B7CF55F05EE872237FE15032EA12A2724810256849A49`. It is unsigned. The installed executable is `%LOCALAPPDATA%/Synapse/synapse.exe`.
+
+## 0.4.0 feature validation
 
 Executed on Windows x64 on 15–16 November 2026 (Australia/Sydney). All study content used for verification was synthetic and kept in temporary vaults. Personal study notes and credentials were not used. Previous release evidence remains in Git history.
 

@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-export function useReducedMotion() {
+import {
+  resolveReducedMotion,
+  usePreferences,
+} from "../interaction/preferences";
+export function useSystemReducedMotion() {
   const [reduced, setReduced] = useState(
     () => matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
@@ -10,4 +14,9 @@ export function useReducedMotion() {
     return () => media.removeEventListener("change", update);
   }, []);
   return reduced;
+}
+export function useReducedMotion() {
+  const systemReduced = useSystemReducedMotion();
+  const { motion } = usePreferences();
+  return resolveReducedMotion(motion, systemReduced);
 }

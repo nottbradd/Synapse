@@ -1,4 +1,5 @@
 import type { ForceGraphMethods } from "react-force-graph-2d";
+import type { RefObject } from "react";
 import type { Snapshot } from "../types";
 import { overlaps, type LabelNode, type Rect } from "../graphLabels";
 import {
@@ -61,7 +62,7 @@ export class GraphScene {
   reduced = false;
   colors = new Map<string, string>();
   related = new Set<string>();
-  drawer: HTMLDivElement | null = null;
+  drawer: RefObject<HTMLDivElement | null> | null = null;
   heading: HTMLElement | null = null;
   controls: HTMLElement | null = null;
   zoomText: HTMLElement | null = null;
@@ -363,13 +364,16 @@ export class GraphScene {
       this.api.centerAt(centre.x, centre.y, 0);
       this.applying = false;
     }
-    if (this.drawer) {
+    // The sibling drawer mounts after Graph's layout effect on the first selection.
+    // Resolve its ref on the animation frame instead of retaining the earlier null.
+    const drawer = this.drawer?.current;
+    if (drawer) {
       const fraction = Math.max(
         0,
         Math.min(1, f.drawer / (this.editorWidth + 32)),
       );
-      this.drawer.style.transform = `translateX(${(this.editorWidth + 24) * (1 - fraction)}px)`;
-      this.drawer.style.visibility =
+      drawer.style.transform = `translateX(${(this.editorWidth + 24) * (1 - fraction)}px)`;
+      drawer.style.visibility =
         fraction === 0 && !this.selected && !this.auxiliaryOpen
           ? "hidden"
           : "visible";

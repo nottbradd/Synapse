@@ -3,10 +3,16 @@ import { invoke } from "@tauri-apps/api/core";
 import type { DeviceSettings } from "../study";
 import { message } from "../types";
 import { X } from "lucide-react";
-import { preferences, usePreferences } from "../interaction/preferences";
+import {
+  preferences,
+  usePreferences,
+  type MotionPreference,
+} from "../interaction/preferences";
 import { feedback } from "../interaction/events";
+import { useSystemReducedMotion } from "../hooks/useReducedMotion";
 export default function Preferences({ onClose }: { onClose: () => void }) {
   const p = usePreferences();
+  const systemReduced = useSystemReducedMotion();
   const [settings, setSettings] = useState<DeviceSettings>();
   const [startup, setStartup] = useState(false);
   const [key, setKey] = useState("");
@@ -70,6 +76,35 @@ export default function Preferences({ onClose }: { onClose: () => void }) {
           </button>
         </header>
         <div className="settings-scroll">
+          <section className="settings-group">
+            <h3>Motion</h3>
+            <label>
+              Animations
+              <select
+                aria-label="Animations"
+                aria-describedby="motion-description"
+                value={p.motion}
+                onChange={(e) =>
+                  preferences.update({
+                    motion: e.target.value as MotionPreference,
+                  })
+                }
+              >
+                <option value="system">Follow Windows</option>
+                <option value="full">Full</option>
+                <option value="reduced">Reduced</option>
+              </select>
+            </label>
+            <p id="motion-description">
+              {p.motion === "system"
+                ? systemReduced
+                  ? "Windows animations are off. Notes and panels move immediately. Choose Full for smooth movement in Synapse."
+                  : "Windows animations are on. Synapse uses smooth movement."
+                : p.motion === "full"
+                  ? "Smooth camera, panel and title movement, with connection currents. Applies only to Synapse."
+                  : "Immediate camera and panel changes, with no moving connection currents."}
+            </p>
+          </section>
           <section className="settings-group">
             <h3>Sound</h3>
             <label className="check-option">

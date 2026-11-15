@@ -15,6 +15,7 @@ import {
   PreferenceStore,
   PREFERENCE_KEY,
   decodePreferences,
+  resolveReducedMotion,
 } from "./preferences";
 import { TextMeasurements, watchFonts, LABEL_FONT } from "./fonts";
 import {
@@ -378,8 +379,53 @@ describe("voice reservations and preferences", () => {
       schema_version: 1,
       sound: false,
       volume: 0.21,
+      motion: "system",
     });
     expect(decodePreferences('{"schema_version":99}').volume).toBe(0.35);
+  });
+  it("migrates existing sound settings without changing them or writing storage", () => {
+    const raw = '{"schema_version":1,"sound":false,"volume":0.17}';
+    const storage = { getItem: () => raw, setItem: vi.fn() };
+    const store = new PreferenceStore(storage);
+    expect(store.get()).toEqual({
+      schema_version: 1,
+      sound: false,
+      volume: 0.17,
+      motion: "system",
+    });
+    expect(storage.setItem).not.toHaveBeenCalled();
+    store.update({ motion: "full" });
+    expect(JSON.parse(storage.setItem.mock.calls[0][1])).toEqual({
+      schema_version: 1,
+      sound: false,
+      volume: 0.17,
+      motion: "full",
+    });
+  });
+  it.each([
+    ["system", true, true],
+    ["system", false, false],
+    ["full", true, false],
+    ["full", false, false],
+    ["reduced", true, true],
+    ["reduced", false, true],
+  ] as const)(
+    "resolves %s with Windows reduced motion %s to %s",
+    (motion, system, expected) => {
+      expect(resolveReducedMotion(motion, system)).toBe(expected);
+    },
+  );
+  it("preserves sound when an unknown motion value falls back to Windows", () => {
+    expect(
+      decodePreferences(
+        '{"schema_version":1,"sound":false,"volume":0.2,"motion":"invalid"}',
+      ),
+    ).toEqual({
+      schema_version: 1,
+      sound: false,
+      volume: 0.2,
+      motion: "system",
+    });
   });
 });
 describe("font and data stability", () => {

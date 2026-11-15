@@ -20,8 +20,10 @@ import Preferences from "./components/Preferences";
 import { feedback } from "./interaction/events";
 import StudyPanel from "./components/StudyPanel";
 import { useStudy } from "./hooks/useStudy";
+import { useReducedMotion } from "./hooks/useReducedMotion";
 export default function App() {
   const w = useWorkspace();
+  const reduced = useReducedMotion();
   const { vault, doc, busy, create, pending, linkChoice } = w;
   const drawer = useRef<HTMLDivElement>(null),
     retained = useRef(w);
@@ -120,7 +122,7 @@ export default function App() {
     Math.min(studyOpen ? 560 : w.panelWidth, width - left - 180),
   );
   return (
-    <main className="app">
+    <main className="app" data-motion={reduced ? "reduced" : "full"}>
       {!vault ? (
         <div className="welcome">
           <Waypoints size={34} strokeWidth={1.5} />

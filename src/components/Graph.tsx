@@ -69,7 +69,7 @@ export default function Graph({
     scene.api = graph.current;
     scene.lightCanvas = light.current;
     scene.container = container.current;
-    scene.drawer = drawer.current;
+    scene.drawer = drawer;
     scene.heading = heading.current;
     scene.controls = controls.current;
     scene.zoomText = zoomText.current;

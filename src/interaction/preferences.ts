@@ -1,14 +1,23 @@
 import { useSyncExternalStore } from "react";
+export type MotionPreference = "system" | "full" | "reduced";
 export interface Preferences {
   schema_version: 1;
   sound: boolean;
   volume: number;
+  motion: MotionPreference;
 }
 export const DEFAULT_PREFERENCES: Preferences = {
   schema_version: 1,
   sound: true,
   volume: 0.35,
+  motion: "system",
 };
+export function resolveReducedMotion(
+  motion: MotionPreference,
+  systemReduced: boolean,
+) {
+  return motion === "system" ? systemReduced : motion === "reduced";
+}
 export const PREFERENCE_KEY = "synapse.preferences.v1";
 export function decodePreferences(raw: string | null): Preferences {
   try {
@@ -21,7 +30,13 @@ export function decodePreferences(raw: string | null): Preferences {
       p.volume >= 0 &&
       p.volume <= 1
     )
-      return { schema_version: 1, sound: p.sound, volume: p.volume };
+      return {
+        schema_version: 1,
+        sound: p.sound,
+        volume: p.volume,
+        motion:
+          p.motion === "full" || p.motion === "reduced" ? p.motion : "system",
+      };
   } catch {
     /* Preserve malformed storage until an explicit preference change. */
   }
@@ -49,7 +64,7 @@ export class PreferenceStore {
       this.listeners.delete(fn);
     };
   };
-  update(change: Partial<Pick<Preferences, "sound" | "volume">>) {
+  update(change: Partial<Pick<Preferences, "sound" | "volume" | "motion">>) {
     this.value = {
       ...this.value,
       ...change,

@@ -78,7 +78,9 @@ Subject clusters use persistent IDs and saved colours. Leaf, connected and hub j
 
 One critically damped controller moves the drawer, camera and logarithmic zoom together. It measures the uncovered canvas, selects zoom from the neighbourhood, retains velocity when interrupted, and restores the exact prior overview. Narrow currents follow actual curved relationships on selection, WikiLink navigation, saved connections and review completion. Travel time depends on projected length; sound arrivals share the same event plan. The idle graph stops rendering. Reduced motion snaps spatial changes and suppresses travelling effects.
 
-Preferences contains persistent Sound and Volume. One lazy Web Audio instrument produces dry contact, low-mid body and a short damped metallic edge. It bounds polyphony to six voices, uses compression/limiting, suppresses repeated events and cancels pending feedback on native focus loss and scope changes. Typing, hover, startup and indexing stay silent. No reference WAV or `.codex` files are needed by the installed application.
+Preferences contains persistent Animations, Sound and Volume. Animations defaults to **Follow Windows**: disabling Windows animation effects makes camera and panel changes immediate. Choose **Full** for smooth Synapse motion independently of Windows, or **Reduced** for immediate movement and no connection currents. The setting applies consistently to the camera, panels, titles and CSS transitions, and takes effect immediately.
+
+One lazy Web Audio instrument produces dry contact, low-mid body and a short damped metallic edge. It bounds polyphony to six voices, uses compression/limiting, suppresses repeated events and cancels pending feedback on native focus loss and scope changes. Typing, hover, startup and indexing stay silent. No reference WAV or `.codex` files are needed by the installed application.
 
 See [interaction architecture](INTERACTION.md) and [executed validation](VALIDATION.md) for timing, lifecycle and test boundaries.
 

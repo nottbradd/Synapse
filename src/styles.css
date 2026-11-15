@@ -1158,14 +1158,13 @@ kbd {
     transform: rotate(360deg);
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *:before,
-  *:after {
-    animation: none !important;
-    transition: none !important;
-    scroll-behavior: auto !important;
-  }
+.app[data-motion="reduced"],
+.app[data-motion="reduced"] *,
+.app[data-motion="reduced"] *::before,
+.app[data-motion="reduced"] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
 }
 @media (max-height: 680px) {
   .sidebar-head {
