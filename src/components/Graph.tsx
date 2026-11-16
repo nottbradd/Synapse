@@ -148,66 +148,68 @@ export default function Graph({
       onWheel={scene.wake}
       onPointerLeave={() => scene.setHover()}
     >
-      <canvas className="graph-light" aria-hidden="true" ref={light} />
-      <ForceGraph2D
-        ref={graph}
-        width={size.width}
-        height={size.height}
-        graphData={data}
-        backgroundColor="rgba(0,0,0,0)"
-        nodeId="id"
-        nodeLabel=""
-        autoPauseRedraw={false}
-        onNodeClick={(_node, event) => openAt(event)}
-        onBackgroundClick={openAt}
-        onLinkClick={(_link, event) => openAt(event)}
-        onNodeHover={(n) =>
-          scene.setHover(n && scene.isInteractive(n) ? n.id : undefined)
-        }
-        onZoom={() => scene.manual()}
-        onNodeDrag={(n) => {
-          scene.topology.reveal.pin(n);
-          if (dragLayout !== topology) setDragLayout(topology);
-          scene.engine = true;
-          scene.wake();
-        }}
-        onNodeDragEnd={(n) => {
-          n.fx = n.x;
-          n.fy = n.y;
-          scene.topology.reveal.pin(n);
-          scene.wake();
-        }}
-        onEngineStop={() => scene.engineStopped()}
-        cooldownTicks={
-          scene.topology.nested
-            ? 0
-            : scene.topology.layoutChanged || dragLayout === topology
-              ? 90
-              : 0
-        }
-        warmupTicks={scene.topology.layoutChanged ? 80 : 0}
-        d3AlphaDecay={0.055}
-        linkCanvasObject={(link, ctx, scale) =>
-          scene.drawEdge(link, ctx, scale)
-        }
-        linkCanvasObjectMode={() => "replace"}
-        nodeCanvasObject={(n, ctx, scale) => scene.drawNode(n, ctx, scale)}
-        nodePointerAreaPaint={(n, color, ctx) => {
-          if (!scene.isInteractive(n)) return;
-          ctx.fillStyle = color;
-          ctx.beginPath();
-          ctx.arc(
-            n.x ?? 0,
-            n.y ?? 0,
-            Math.max(nodeScreenRadius(n, scene.motion.frame.zoom), 8) /
-              scene.motion.frame.zoom,
-            0,
-            Math.PI * 2,
-          );
-          ctx.fill();
-        }}
-        onRenderFramePost={(ctx) => scene.draw(ctx)}
-      />
+      <div className="graph-surface" data-swarm="graph">
+        <canvas className="graph-light" aria-hidden="true" ref={light} />
+        <ForceGraph2D
+          ref={graph}
+          width={size.width}
+          height={size.height}
+          graphData={data}
+          backgroundColor="rgba(0,0,0,0)"
+          nodeId="id"
+          nodeLabel=""
+          autoPauseRedraw={false}
+          onNodeClick={(_node, event) => openAt(event)}
+          onBackgroundClick={openAt}
+          onLinkClick={(_link, event) => openAt(event)}
+          onNodeHover={(n) =>
+            scene.setHover(n && scene.isInteractive(n) ? n.id : undefined)
+          }
+          onZoom={() => scene.manual()}
+          onNodeDrag={(n) => {
+            scene.topology.reveal.pin(n);
+            if (dragLayout !== topology) setDragLayout(topology);
+            scene.engine = true;
+            scene.wake();
+          }}
+          onNodeDragEnd={(n) => {
+            n.fx = n.x;
+            n.fy = n.y;
+            scene.topology.reveal.pin(n);
+            scene.wake();
+          }}
+          onEngineStop={() => scene.engineStopped()}
+          cooldownTicks={
+            scene.topology.nested
+              ? 0
+              : scene.topology.layoutChanged || dragLayout === topology
+                ? 90
+                : 0
+          }
+          warmupTicks={scene.topology.layoutChanged ? 80 : 0}
+          d3AlphaDecay={0.055}
+          linkCanvasObject={(link, ctx, scale) =>
+            scene.drawEdge(link, ctx, scale)
+          }
+          linkCanvasObjectMode={() => "replace"}
+          nodeCanvasObject={(n, ctx, scale) => scene.drawNode(n, ctx, scale)}
+          nodePointerAreaPaint={(n, color, ctx) => {
+            if (!scene.isInteractive(n)) return;
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(
+              n.x ?? 0,
+              n.y ?? 0,
+              Math.max(nodeScreenRadius(n, scene.motion.frame.zoom), 8) /
+                scene.motion.frame.zoom,
+              0,
+              Math.PI * 2,
+            );
+            ctx.fill();
+          }}
+          onRenderFramePost={(ctx) => scene.draw(ctx)}
+        />
+      </div>
       <header
         className="graph-heading"
         ref={heading}
@@ -222,10 +224,13 @@ export default function Graph({
             <ArrowLeft size={17} /> Back
           </button>
         )}
-        <h1 title={title}>
+        <h1
+          title={title}
+          data-swarm={scope.kind === "overview" ? "text" : "box"}
+        >
           <TransitionTitle text={title ?? "All Neurons"} />
         </h1>
-        <span>
+        <span data-swarm="box">
           {scope.kind === "overview"
             ? `${scene.topology.visibleNodes.length} subnetworks`
             : scope.kind === "topic"
@@ -254,7 +259,7 @@ export default function Graph({
           </button>
         </div>
       )}
-      <div className="graph-controls glass" ref={controls}>
+      <div className="graph-controls glass" ref={controls} data-swarm="box">
         <details className="network-browser">
           <summary aria-label="Browse current network">Browse</summary>
           <div>

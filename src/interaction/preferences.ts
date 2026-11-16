@@ -5,12 +5,14 @@ export interface Preferences {
   sound: boolean;
   volume: number;
   motion: MotionPreference;
+  startupAnimation: boolean;
 }
 export const DEFAULT_PREFERENCES: Preferences = {
   schema_version: 1,
   sound: true,
-  volume: 0.35,
+  volume: 0.7,
   motion: "system",
+  startupAnimation: true,
 };
 export function resolveReducedMotion(
   motion: MotionPreference,
@@ -36,6 +38,7 @@ export function decodePreferences(raw: string | null): Preferences {
         volume: p.volume,
         motion:
           p.motion === "full" || p.motion === "reduced" ? p.motion : "system",
+        startupAnimation: p.startupAnimation !== false,
       };
   } catch {
     /* Preserve malformed storage until an explicit preference change. */
@@ -64,7 +67,11 @@ export class PreferenceStore {
       this.listeners.delete(fn);
     };
   };
-  update(change: Partial<Pick<Preferences, "sound" | "volume" | "motion">>) {
+  update(
+    change: Partial<
+      Pick<Preferences, "sound" | "volume" | "motion" | "startupAnimation">
+    >,
+  ) {
     this.value = {
       ...this.value,
       ...change,

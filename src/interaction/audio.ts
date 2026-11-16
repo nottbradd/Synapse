@@ -95,7 +95,29 @@ export function subjectRegister(id = "") {
   for (const c of id) h = (Math.imul(h, 31) + c.charCodeAt(0)) | 0;
   return 0.996 + (((h >>> 0) % 100) / 100) * 0.008;
 }
-type Voice = { sources: OscillatorNode[]; nodes: AudioNode[] };
+type Voice = { sources: AudioScheduledSourceNode[]; nodes: AudioNode[] };
+const contacts = new WeakMap<BaseAudioContext, AudioBuffer>();
+function contactBuffer(context: BaseAudioContext) {
+  let buffer = contacts.get(context);
+  if (!buffer) {
+    buffer = context.createBuffer(
+      1,
+      Math.ceil(context.sampleRate * 0.008),
+      context.sampleRate,
+    );
+    const samples = buffer.getChannelData(0);
+    // Original, deterministic noise; one short buffer shared by all voices.
+    let seed = 0x51a9e;
+    for (let i = 0; i < samples.length; i++) {
+      seed ^= seed << 13;
+      seed ^= seed >>> 17;
+      seed ^= seed << 5;
+      samples[i] = (seed >>> 0) / 0x80000000 - 1;
+    }
+    contacts.set(context, buffer);
+  }
+  return buffer;
+}
 const material: Record<
   Cue,
   { duration: number; level: number; cutoff: number }
@@ -112,7 +134,7 @@ const material: Record<
   connect: { duration: 0.19, level: 0.82, cutoff: 8000 },
   complete: { duration: 0.225, level: 1, cutoff: 12000 },
   error: { duration: 0.15, level: 0.7, cutoff: 2200 },
-  arrival: { duration: 0.125, level: 0.2, cutoff: 2600 },
+  arrival: { duration: 0.125, level: 0.8, cutoff: 2600 },
 };
 // The same production voice graph accepts OfflineAudioContext for mix tests.
 export class NoteSynth {
@@ -129,9 +151,9 @@ export class NoteSynth {
     volume: number,
   ) {
     this.compressor = context.createDynamicsCompressor();
-    this.compressor.threshold.value = -23;
-    this.compressor.knee.value = 3;
-    this.compressor.ratio.value = 4;
+    this.compressor.threshold.value = -16;
+    this.compressor.knee.value = 4;
+    this.compressor.ratio.value = 3;
     this.compressor.attack.value = 0.001;
     this.compressor.release.value = 0.045;
     this.limiter = context.createWaveShaper();
@@ -154,6 +176,11 @@ export class NoteSynth {
   }
   volume(value: number) {
     this.master.gain.cancelScheduledValues(this.context.currentTime);
+    if (this.muted || value === 0) {
+      this.cancel();
+      this.master.gain.setValueAtTime(0, this.context.currentTime);
+      return;
+    }
     this.master.gain.setTargetAtTime(
       this.muted ? 0 : Math.max(0, Math.min(1, value)) * AUDIO.master,
       this.context.currentTime,
@@ -169,11 +196,13 @@ export class NoteSynth {
     for (const id of ids ?? [...this.active.keys()]) {
       const voice = this.active.get(id);
       if (voice) {
-        try {
-          voice.sources.forEach((source) => source.stop());
-        } catch {
-          /* already stopped */
-        }
+        voice.sources.forEach((source) => {
+          try {
+            source.stop();
+          } catch {
+            /* already stopped */
+          }
+        });
         voice.nodes.forEach((n) => n.disconnect());
         this.active.delete(id);
       }
@@ -219,9 +248,10 @@ export class NoteSynth {
     if (this.repeats.size > 512)
       this.repeats.delete(this.repeats.keys().next().value!);
     const bus = c.createGain(),
+      voiceLevel = c.createGain(),
       filter = c.createBiquadFilter(),
       pan = c.createStereoPanner();
-    const voice: Voice = { sources: [], nodes: [bus, filter, pan] };
+    const voice: Voice = { sources: [], nodes: [bus, voiceLevel, filter, pan] };
     this.active.set(e.id, voice);
     filter.type = "lowpass";
     filter.Q.value = 0.5;
@@ -232,17 +262,24 @@ export class NoteSynth {
       Math.max(0, Math.min(1, e.level ?? 0.8)) *
       tone.level *
       sound.gain *
-      (quiet ? 0.6 : 1);
+      // Arrival balance is explicit in event × material, with no hidden
+      // third attenuation. Dismissal/error cues retain their softer policy.
+      (quiet && e.kind !== "arrival" ? 0.6 : 1);
+    voiceLevel.gain.value = level;
     bus.gain.value = 0;
     bus.gain.setValueAtTime(0, at);
-    bus.gain.linearRampToValueAtTime(level, at + sound.attack);
+    bus.gain.linearRampToValueAtTime(1, at + sound.attack);
     const decayEnd = life - 0.012;
     bus.gain.exponentialRampToValueAtTime(
-      Math.max(0.000001, level * Math.exp(-decayEnd / sound.decay)),
+      Math.exp(-decayEnd / sound.decay),
       at + decayEnd,
     );
     bus.gain.linearRampToValueAtTime(0, at + life);
-    filter.connect(bus).connect(pan).connect(this.compressor);
+    filter
+      .connect(bus)
+      .connect(voiceLevel)
+      .connect(pan)
+      .connect(this.compressor);
     for (const [ratio, weight] of sound.partials) {
       const source = c.createOscillator(),
         partial = c.createGain();
@@ -256,6 +293,23 @@ export class NoteSynth {
       source.start(at);
       source.stop(at + life);
     }
+    const contact = c.createBufferSource(),
+      band = c.createBiquadFilter(),
+      envelope = c.createGain();
+    contact.buffer = contactBuffer(c);
+    band.type = "bandpass";
+    band.frequency.value = 3200;
+    band.Q.value = 0.8;
+    envelope.gain.setValueAtTime(0, at);
+    envelope.gain.linearRampToValueAtTime(0.12, at + 0.0004);
+    envelope.gain.linearRampToValueAtTime(0, at + 0.0035);
+    contact.connect(band).connect(envelope).connect(voiceLevel);
+    voice.sources.push(contact);
+    voice.nodes.push(contact, band, envelope);
+    contact.start(at);
+    contact.stop(at + 0.008);
+    // Only the tonal body owns final cleanup. The 8 ms source ending must
+    // never disconnect the 170–300 ms note.
     voice.sources[0].onended = () => {
       voice.nodes.forEach((n) => n.disconnect());
       if (this.active.get(e.id) === voice) {

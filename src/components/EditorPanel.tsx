@@ -63,7 +63,7 @@ export default function EditorPanel({
   if (!vault || !doc) return null;
   return (
     <section className="editor-panel" style={{ width: panelWidth }}>
-      <header className="editor-header">
+      <header className="editor-header" data-swarm="box">
         <div>
           <FileText size={15} />
           <span title={doc.id}>
@@ -105,7 +105,7 @@ export default function EditorPanel({
           <TransitionTitle text={selected?.title ?? doc.id} />
         </h2>
       </div>
-      <div className="editor-toolbar">
+      <div className="editor-toolbar" data-swarm="box">
         <div className="segmented inset">
           {(["edit", "split", "read"] as const).map((m) => (
             <button

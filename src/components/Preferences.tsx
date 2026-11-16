@@ -107,6 +107,20 @@ export default function Preferences({ onClose }: { onClose: () => void }) {
                   ? "Smooth camera, panel and title movement, with connection currents. Applies only to Synapse."
                   : "Immediate camera and panel changes, with no moving connection currents."}
             </p>
+            <label className="check-option">
+              <input
+                type="checkbox"
+                checked={p.startupAnimation}
+                onChange={(e) =>
+                  preferences.update({ startupAnimation: e.target.checked })
+                }
+              />
+              Startup animation
+            </label>
+            <p>
+              A brief, silent cursor rebuild when Synapse first opens. Skipped
+              with Reduced animations.
+            </p>
           </section>
           <section className="settings-group">
             <h3>Sound</h3>

@@ -148,12 +148,13 @@ export default function Sidebar({
         aria-label="Vault navigation"
       >
         <header className="sidebar-head">
-          <span className="brand">
+          <span className="brand" data-swarm="box">
             <Waypoints size={19} />
             {!collapsed && "Synapse"}
           </span>
           <button
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            data-swarm="box"
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             onClick={() => setCollapsed(!collapsed)}
           >
@@ -165,7 +166,7 @@ export default function Sidebar({
           </button>
         </header>
         {collapsed ? (
-          <div className="rail">
+          <div className="rail" data-swarm="box">
             <button
               title="Create study material"
               aria-label="Create study material"
@@ -226,7 +227,7 @@ export default function Sidebar({
           </div>
         ) : (
           <>
-            <div className="vault-heading">
+            <div className="vault-heading" data-swarm="box">
               <strong title={vault.root}>{vault.name}</strong>
               <button
                 title="Open vault"
@@ -237,7 +238,7 @@ export default function Sidebar({
                 <FolderOpen size={17} />
               </button>
             </div>
-            <label className="search">
+            <label className="search" data-swarm="box">
               <Search size={16} />
               <input
                 id="note-search"
@@ -254,13 +255,18 @@ export default function Sidebar({
             </label>
             <button
               className="new-note"
+              data-swarm="box"
               disabled={busy}
               onClick={() => onNewNote()}
             >
               <Plus size={17} />
               New note
             </button>
-            <nav className="hierarchy" aria-label="Neurons and subjects">
+            <nav
+              className="hierarchy"
+              aria-label="Neurons and subjects"
+              data-swarm="box"
+            >
               <button
                 className={`all-row ${!location.neuron_id ? "selected" : ""}`}
                 aria-current={!location.neuron_id ? "page" : undefined}
@@ -356,7 +362,7 @@ export default function Sidebar({
                 </div>
               ))}
             </nav>
-            <div className="sidebar-actions">
+            <div className="sidebar-actions" data-swarm="box">
               <button
                 disabled={busy}
                 onClick={() => action({ kind: "new-neuron" })}
@@ -384,7 +390,7 @@ export default function Sidebar({
                 Import subject
               </button>
             </div>
-            <footer className="sidebar-footer">
+            <footer className="sidebar-footer" data-swarm="box">
               <div className="study-entries">
                 <button onClick={() => onStudy("create")}>
                   <Plus size={17} />

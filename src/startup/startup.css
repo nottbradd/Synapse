@@ -1,0 +1,107 @@
+/* Opacity never changes hit testing or the live accessibility tree. If JS
+   stalls after the snapshot, every region reveals within 1180 ms of startup. */
+[data-swarm-hidden="true"] {
+  animation: swarm-reveal-safety 950ms steps(1, end) forwards;
+}
+@keyframes swarm-reveal-safety {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.swarm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  overflow: hidden;
+  contain: strict;
+  animation: swarm-overlay-safety 1150ms steps(1, end) forwards;
+}
+@keyframes swarm-overlay-safety {
+  to {
+    visibility: hidden;
+  }
+}
+.swarm-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+  filter: drop-shadow(0 1px 1px #070b10);
+}
+.swarm-cursor svg {
+  display: none;
+  stroke-width: 1.6;
+}
+.swarm-cursor[data-mode="pointer"] .swarm-pointer {
+  display: block;
+  fill: currentColor;
+  stroke: #101720;
+  stroke-width: 1;
+}
+.swarm-cursor[data-mode="crosshair"] .swarm-crosshair,
+.swarm-cursor[data-mode="text"] .swarm-text-cursor {
+  display: block;
+  transform: translate(-50%, -50%);
+}
+.swarm-mark {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.swarm-box {
+  border: 1px solid currentColor;
+}
+.swarm-text {
+  white-space: pre;
+  overflow: hidden;
+}
+.swarm-handle {
+  display: none;
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: #101720;
+  border: 1px solid currentColor;
+}
+.swarm-handles .swarm-handle {
+  display: block;
+}
+.swarm-handles::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: -10px;
+  width: 7px;
+  border-top: 1px solid currentColor;
+  opacity: 0.6;
+}
+.corner-0 {
+  left: -2px;
+  top: -2px;
+}
+.corner-1 {
+  right: -2px;
+  top: -2px;
+}
+.corner-2 {
+  left: -2px;
+  bottom: -2px;
+}
+.corner-3 {
+  right: -2px;
+  bottom: -2px;
+}
+.startup-restoring {
+  display: grid;
+  place-items: center;
+  height: 100vh;
+  color: var(--muted);
+}
+.graph-surface {
+  position: absolute;
+  inset: 0;
+}

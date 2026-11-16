@@ -80,6 +80,8 @@ One critically damped controller moves the drawer, camera and logarithmic zoom t
 
 Preferences contains persistent Animations, Sound and Volume. Animations defaults to **Follow Windows**: disabling Windows animation effects makes camera and panel changes immediate. Choose **Full** for smooth Synapse motion independently of Windows, or **Reduced** for immediate movement and no connection currents. The setting applies consistently to the camera, panels, titles and CSS transitions, and takes effect immediately.
 
+**Startup animation** controls a silent, roughly one-second cursor rebuild on the first foreground presentation of each app launch. Reduced animations skip it. Your first click or key immediately reveals the live interface and performs its normal action. Slow restoration, resizing or other interruptions safely skip the effect. It never reruns just because you change vaults or reopen the tray window. New profiles start at 70% sound volume; existing saved volume is preserved.
+
 One lazy Web Audio instrument uses original additive synthesis. Subnetwork entries use C4–G4, topics C5–G5, and linked concepts C6–E6, with stable node-derived pitches and bounded attack, detune and level variation. Higher voices are shorter and quieter; deeper exploration stays in that highest register. Back/close and neighbour arrivals are restrained. Six-voice limits, compression/limiting, repeated-event suppression and native-focus cancellation remain in place. Typing, hover, startup and indexing stay silent. No recorded notification or external sound file is bundled.
 
 See [interaction architecture](../INTERACTION.md) and [executed validation](../VALIDATION.md) for timing, lifecycle and test boundaries.

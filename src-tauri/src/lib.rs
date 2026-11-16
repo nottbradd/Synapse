@@ -11,6 +11,7 @@ mod organization;
 mod organization_tests;
 mod packages;
 mod reminders;
+mod startup;
 mod study;
 mod study_commands;
 #[cfg(test)]
@@ -44,6 +45,7 @@ pub fn run() {
         )
         .manage(commands::Backend::default())
         .manage(ai::AiState::default())
+        .manage(startup::Launch::default())
         .setup(|app| {
             let directory = app.path().app_config_dir()?;
             #[cfg(all(debug_assertions, feature = "test-api"))]
@@ -87,6 +89,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            startup::claim_startup,
             commands::restore_vault,
             commands::open_vault,
             commands::read_note,

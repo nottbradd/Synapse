@@ -1,4 +1,38 @@
-# Synapse 0.6.0 validation
+# Synapse validation
+
+## 0.7.0 — 16 November 2026
+
+The installed production build adds the silent cursor-swarm startup and calibrates the original static chimes. All new desktop checks used temporary synthetic vaults. There were no live OpenAI requests, hosted-policy edits, repository visibility changes or new dependencies. The original vault selection, Personal AI selection, consent state, device settings and exact saved preference record (Full animations and 69% volume) were restored. The installed app was restarted normally without a debugging port.
+
+| Check                                                    | Result                                                |
+| -------------------------------------------------------- | ----------------------------------------------------- |
+| TypeScript typecheck and ESLint                          | Passed                                                |
+| Frontend tests                                           | 75 passed                                             |
+| Rust tests                                               | 47 passed; one explicit live-provider test ignored    |
+| Rust formatting and Clippy, all targets, warnings denied | Passed                                                |
+| Hosted gateway                                           | 22 local D1 tests passed with a mocked provider       |
+| Startup lifecycle in Chromium                            | 27 cases passed                                       |
+| Production audio graph                                   | 150 OfflineAudioContext cases passed                  |
+| Production build and NSIS installation                   | Passed; installed payload hash verified               |
+| Installed startup, nested navigation, settings and sound | Passed; real WebView footage and live output captured |
+
+Startup coverage includes Full, Reduced, Follow Windows, the independent checkbox, slow restoration and fonts, pointer/keyboard/touch/wheel/focus interruption, resize, DPR, late fonts/layout, modal/editor precedence, unmount, real React Strict Mode, background/hidden launch, native focus without a DOM focus event, once-per-launch, unavailable storage, induced failure and the CSS safety reveal. First-interaction handlers observed zero hidden regions and zero overlays without event prevention or replay. The fallback test deliberately stopped JavaScript cleanup and verified compositor visibility; a blocked renderer cannot execute a JavaScript deadline.
+
+The fresh installed launch with a restored vault selected 12 actual UI targets and completed in **1054.9 ms** from its accepted first foreground frame. The genuine no-vault welcome selected three eligible targets and completed in **1054.8 ms**. Both created zero AudioContexts, removed all hidden attributes/overlays and declined a replay after frontend reload. Actual native focus was established by the owner's Alt+Tab. The clips preserve original compositor timing, with a short hold of the final unchanged frame; no motion frames are interpolated. The GIF is a smaller 25 fps review copy. The measured times include preparation and remain below the 1200 ms deadline.
+
+The full audio matrix covers subnetwork/topic/concept at 35%, 69%, 70%, 100% and zero volume, including selection, individual arrival, three neighbours, dense overlap, cancellation before and during playback, mute, stale events, disposal and gating. The reference floors at 70% remain −20 dBFS peak for selection and −40 dBFS for individual arrivals. Individual arrivals stay below 70% of corresponding selection peaks and three simultaneous neighbours below 120%. The highest sample peak across all cases was **0.235457**, below the 0.241 bound. Samples were finite, silent cases were zero, tails cleared, reservations/voices ended, every instrumented node connection was released on disposal and one contact-noise buffer was cached per context. The contact's completion did not truncate the tonal body.
+
+[Startup integration, marker inventory and before/after audio measurements](docs/STARTUP_AUDIO.md) document the production path, active-window RMS, decay and spectrum. The static/glide comparison is matched by active-window RMS, within 0.000001 dB for the reference files. The owner rated the static cues **“Clear and comfortable.”** Static pitch remains the production default; the 12 ms / 25-cent glide exists only in the audition renderer. Speaker frequency response was not measured.
+
+Installed regression checks covered overview → subnetwork → topic → linked concepts and Back, saved volume, startup checkbox persistence, explicit Full overriding emulated OS reduction, Follow Windows respecting it, and reload without startup replay. Every settled Back canvas at the established 1600×1000 test viewport matched exactly. An additional native 1440×900 comparison differed at 36 of 1,296,000 pixels by at most one 8-bit channel step; this is a recorded rendering tolerance, not an exact-image pass at that viewport. No renderer errors occurred.
+
+The 12.82-second sound video uses the real app's output at 69% volume and 660 delivered compositor frames plus a final held-frame timestamp. All eight primary cues are present in the source and muxed audio. Their threshold onsets are 24–86 ms after the harness's pre-click markers; those markers precede Playwright's click dispatch, so this is not an input-latency measurement. Encoding preserves frame timestamps within 0.819 ms; source and muxed cue onsets match at the 5 ms analysis resolution. Actual capture cadence during the transitions was approximately 82–96 fps on this host, not a hardware-independent guarantee.
+
+The unsigned NSIS installer SHA-256 is `caaacb2d5b60e077265c384ec45372762b2da18b4cc0e1f669a4b13ed6f80f8d`. Its installed executable SHA-256 is `0e8c7f33bbcc177a58254a374794860a77963a88a5439c3a3bd6754868d3f548`, matching the extracted installer payload. GPL v3, copyright and complete third-party notices are installed. This update is built and installed locally; it does not publish a new GitHub release.
+
+Local evidence is excluded from Git: `.local/startup-0.7.0/browser-report.json`, `.local/sound-0.7.0/{before,after}/mix-report.json`, the matched comparison WAVs, `.local/release-0.7.0/{startup-cold,startup-welcome}/report.json`, installed regression/restoration reports, media validation and the actual MP4/GIF/WAV files. The tested host is Windows 11 Pro 10.0.26300. Windows 10 and physical multi-monitor DPI switching remain untested; DPR and OS motion changes were exercised through controlled browser emulation. The installer remains unsigned.
+
+## 0.6.0 — previous release
 
 Validation uses temporary synthetic vaults. No new live provider generation is performed for this release. The existing hosted service and Calendar remain unchanged.
 
@@ -11,7 +45,7 @@ Validation uses temporary synthetic vaults. No new live provider generation is p
 | Hosted gateway                                              | 22 local D1 tests passed with a mocked OpenAI provider                               |
 | Production audio                                            | 54 OfflineAudioContext cases passed across three registers at 69% and maximum volume |
 | Development desktop                                         | Real Rust/WebView checks passed; details below                                       |
-| Production build, NSIS installation and installed recording | Passed; publication awaits the history cleanup decision                              |
+| Production build, NSIS installation and installed recording | Passed; history cleanup and clean public release subsequently completed              |
 
 Desktop coverage includes overview/subnetwork/topic entry via the real Canvas, canonical linked notes, unchanged review scope, exact Back camera/layout/selection/drawer width/editor mode, close preserving scope, dirty-note cancel/discard, rapid retargeting, Reduced mode without packets, empty/deleted notes, 900×600 uncovered positioning, idle suspension, 90 real new backlinks and duplicate Physics subjects under distinct Neurons. No renderer errors occurred in the completed run.
 

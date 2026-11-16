@@ -2,6 +2,7 @@ import { NoteSynth, AUDIO, type Cue } from "./audio";
 import { preferences } from "./preferences";
 import type { SignalPacket } from "./signals";
 import type { SoundContext } from "./note";
+import { actionLevel } from "./soundLevels";
 export type ActionIntent = (
   | {
       kind: "select" | "follow" | "connect";
@@ -124,13 +125,7 @@ export class Feedback {
       kind,
       event.at,
       subject,
-      kind === "forgot" || kind === "error"
-        ? 0.52
-        : kind === "import" || kind === "draft"
-          ? 0.55
-          : kind === "remembered"
-            ? 0.65
-            : 0.8,
+      actionLevel(kind),
       1,
       0,
       intent,

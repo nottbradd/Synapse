@@ -36,11 +36,11 @@ export function nodeVoice(context: SoundContext, repetition = 0) {
     attack: 0.0025 + variation * 0.0015,
     duration: [0.3, 0.235, 0.17][register],
     decay: [0.06, 0.044, 0.032][register],
-    gain: [0.19, 0.15, 0.105][register] * (0.96 + variation * 0.04),
+    gain: [0.39, 0.38, 0.36][register] * (0.96 + variation * 0.04),
     partials: [
       [1, 1],
-      [2, [0.045, 0.065, 0.028][register]],
-      [3, 0.025],
+      [2, [0.3, 0.065, 0.028][register]],
+      [3, register === 0 ? 0.15 : 0.025],
       [4, 0.012],
     ],
   };
