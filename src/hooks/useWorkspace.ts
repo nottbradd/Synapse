@@ -4,16 +4,21 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
-  subjects,
+  inLocation,
   message,
   type Document,
   type Snapshot,
-  type Subject,
+  type Location,
+  type OrganizationAction,
   type Rating,
 } from "../types";
 import { resolveWiki } from "../wiki";
+import { feedback } from "../interaction/events";
+import { Exploration } from "../interaction/exploration";
 type Pending = { title: string; detail: string; action: () => void };
 export function useWorkspace() {
+  const [exploration] = useState(() => new Exploration());
+  const [, renderNavigation] = useState(0);
   const [vault, setVault] = useState<Snapshot | null>(null),
     [doc, setDoc] = useState<Document | null>(null),
     [text, setText] = useState("");
@@ -22,30 +27,32 @@ export function useWorkspace() {
     [status, setStatus] = useState("All changes saved"),
     [query, setQuery] = useState(""),
     [collapsed, setCollapsed] = useState(false);
-  const [filters, setFilters] = useState(
-      new Set<Subject>(subjects.map((s) => s.id)),
-    ),
-    [mode, setMode] = useState<"edit" | "split" | "read">("split"),
-    [panelWidth, setPanelWidth] = useState(650);
+  const [mode, setMode] = useState<"edit" | "split" | "read">("read"),
+    [panelWidth, setPanelWidth] = useState(480);
   const [review, setReview] = useState(false),
+    [createAtRoot, setCreateAtRoot] = useState(false),
     [create, setCreate] = useState<string | null>(null),
     [pending, setPending] = useState<Pending | null>(null),
     [conflict, setConflict] = useState<{ disk: Document | null } | null>(null);
   const [linkChoice, setLinkChoice] = useState<{
     raw: string;
     ids: string[];
+    external?: boolean;
   } | null>(null);
   const dirty = !!doc && text !== doc.content;
+  if (vault) exploration.sync(vault);
   const current = useRef({ vault, doc, text, dirty, busy });
   current.current = { vault, doc, text, dirty, busy };
   const loadSerial = useRef(0);
+  const loadingNote = useRef(false);
   const [now, setNow] = useState(() => Date.now() / 1000);
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now() / 1000), 1000);
     return () => clearInterval(t);
   }, []);
-  const fail = useCallback((e: unknown) => {
+  const fail = useCallback((e: unknown, audible = false) => {
     setError(message(e));
+    if (audible) feedback.action({ kind: "error" });
   }, []);
   const applySnapshot = useCallback(
     async (next: Snapshot) => {
@@ -102,7 +109,7 @@ export function useWorkspace() {
       .then((s) => {
         if (!cancelled) setVault(s);
       })
-      .catch(fail)
+      .catch((e: unknown) => fail(e))
       .finally(() => {
         if (!cancelled) setBusy(false);
       });
@@ -118,31 +125,39 @@ export function useWorkspace() {
       void unerror.then((f) => f());
     };
   }, [applySnapshot, fail]);
-  const guard = useCallback((title: string, action: () => void) => {
-    if (current.current.busy) return;
-    if (current.current.dirty)
-      setPending({
-        title,
-        detail:
-          "This note has unsaved edits. Save them before continuing, or explicitly discard them.",
-        action,
-      });
-    else action();
-  }, []);
+  const guard = useCallback(
+    (title: string, action: () => void, allowLoading = false) => {
+      if (current.current.busy && !(allowLoading && loadingNote.current))
+        return;
+      if (current.current.dirty)
+        setPending({
+          title,
+          detail:
+            "This note has unsaved edits. Save them before continuing, or explicitly discard them.",
+          action,
+        });
+      else action();
+    },
+    [],
+  );
   useEffect(() => {
     if (!isTauri()) return;
     const cleanup = getCurrentWindow().onCloseRequested((e) => {
-      if (current.current.dirty || current.current.busy) {
-        e.preventDefault();
-        guard("Close Synapse?", () => {
-          void getCurrentWindow().destroy();
-        });
-      }
+      e.preventDefault();
+      guard("Close Synapse?", () => {
+        void invoke("close_synapse_window", { quit: false }).catch(fail);
+      });
     });
+    const quit = listen("synapse-quit-requested", () =>
+      guard("Quit Synapse?", () => {
+        void invoke("close_synapse_window", { quit: true }).catch(fail);
+      }),
+    );
     return () => {
       void cleanup.then((f) => f());
+      void quit.then((f) => f());
     };
-  }, [guard]);
+  }, [guard, fail]);
   async function chooseVault() {
     guard("Switch vault?", () => {
       void (async () => {
@@ -156,6 +171,7 @@ export function useWorkspace() {
           });
           if (typeof path === "string") {
             const s = await invoke<Snapshot>("open_vault", { path });
+            feedback.cancel();
             loadSerial.current++;
             setVault(s);
             setDoc(null);
@@ -165,40 +181,135 @@ export function useWorkspace() {
             setReview(false);
           }
         } catch (e) {
-          fail(e);
+          fail(e, true);
         } finally {
           setBusy(false);
         }
       })();
     });
   }
-  function openNote(id: string) {
-    guard("Open another note?", () => {
-      void (async () => {
-        const root = current.current.vault?.root;
-        if (!root) return;
-        const serial = ++loadSerial.current;
-        setBusy(true);
-        setError("");
-        try {
-          const next = await invoke<Document>("read_note", {
-            vaultRoot: root,
-            id,
-          });
-          if (serial === loadSerial.current) {
+  function openNote(
+    id: string,
+    reason: "select" | "follow" = "select",
+    source?: string,
+  ) {
+    if (
+      current.current.doc?.id === id &&
+      exploration.scope.kind === "topic" &&
+      exploration.scope.note === id
+    )
+      return;
+    guard(
+      "Open another note?",
+      () => {
+        void (async () => {
+          const root = current.current.vault?.root;
+          if (!root) return;
+          const serial = ++loadSerial.current;
+          loadingNote.current = true;
+          setBusy(true);
+          setError("");
+          try {
+            const next = await invoke<Document>("read_note", {
+              vaultRoot: root,
+              id,
+            });
+            if (serial === loadSerial.current) {
+              const voice = exploration.enterNote(id);
+              setDoc(next);
+              setText(next.content);
+              setConflict(null);
+              setReview(false);
+              setStatus("All changes saved");
+              feedback.action({
+                kind: reason,
+                node: id,
+                source,
+                role: voice.role,
+                level: voice.level,
+                subject: current.current.vault?.notes.find((n) => n.id === id)
+                  ?.subject_id,
+              });
+            }
+          } catch (e) {
+            fail(e, true);
+          } finally {
+            if (serial === loadSerial.current) {
+              loadingNote.current = false;
+              setBusy(false);
+            }
+          }
+        })();
+      },
+      true,
+    );
+  }
+  function navigateGraph(action: "back" | "overview" | { subject: string }) {
+    guard(
+      "Leave this note?",
+      () => {
+        void (async () => {
+          const snapshot = current.current.vault;
+          if (!snapshot) return;
+          exploration.sync(snapshot);
+          const previous = action === "back" ? exploration.previous : undefined;
+          if (action === "back" && !previous) return;
+          const serial = ++loadSerial.current;
+          loadingNote.current = true;
+          setBusy(true);
+          try {
+            const next = previous?.selected
+              ? await invoke<Document>("read_note", {
+                  vaultRoot: snapshot.root,
+                  id: previous.selected,
+                })
+              : null;
+            if (
+              serial !== loadSerial.current ||
+              current.current.vault?.root !== snapshot.root
+            )
+              return;
+            if (action === "back") exploration.back();
+            else if (action === "overview")
+              exploration.overview(snapshot.organization.location.neuron_id);
+            else
+              exploration.enter({
+                kind: "subnetwork",
+                subject: action.subject,
+              });
+            if (previous?.panelWidth) setPanelWidth(previous.panelWidth);
+            if (previous?.mode) setMode(previous.mode);
+            exploration.restoreAuxiliary?.(previous?.auxiliary, next?.id);
             setDoc(next);
-            setText(next.content);
+            setText(next?.content ?? "");
             setConflict(null);
             setReview(false);
-            setStatus("All changes saved");
+            renderNavigation((v) => v + 1);
+            const scope = exploration.scope;
+            feedback.action({
+              kind: typeof action === "object" ? "focus" : "leave",
+              node: scope.kind === "topic" ? scope.note : undefined,
+              subject: scope.kind === "subnetwork" ? scope.subject : undefined,
+              role:
+                scope.kind === "topic"
+                  ? scope.level > 1
+                    ? "concept"
+                    : "topic"
+                  : "subnetwork",
+              level: scope.kind === "topic" ? scope.level : 0,
+            });
+          } catch (e) {
+            fail(e, true);
+          } finally {
+            if (serial === loadSerial.current) {
+              loadingNote.current = false;
+              setBusy(false);
+            }
           }
-        } catch (e) {
-          fail(e);
-        } finally {
-          if (serial === loadSerial.current) setBusy(false);
-        }
-      })();
-    });
+        })();
+      },
+      true,
+    );
   }
   async function save(): Promise<boolean> {
     const state = current.current;
@@ -215,6 +326,25 @@ export function useWorkspace() {
       });
       setVault(next);
       const revision = next.notes.find((n) => n.id === state.doc!.id)?.revision;
+      const oldEdges = new Set(
+        state.vault.edges.map((e) =>
+          [e.source, e.target].sort().join("\u0000"),
+        ),
+      );
+      const targets = next.edges
+        .filter(
+          (e) =>
+            (e.source === state.doc!.id || e.target === state.doc!.id) &&
+            !oldEdges.has([e.source, e.target].sort().join("\u0000")),
+        )
+        .map((e) => (e.source === state.doc!.id ? e.target : e.source));
+      if (targets.length)
+        feedback.action({
+          kind: "connect",
+          node: state.doc.id,
+          targets,
+          subject: next.notes.find((n) => n.id === state.doc!.id)?.subject_id,
+        });
       if (!revision)
         throw new Error(
           "The note was saved but could not be indexed. Refresh to inspect it.",
@@ -235,7 +365,7 @@ export function useWorkspace() {
           setConflict({ disk: null });
         }
       }
-      fail(e);
+      fail(e, true);
       setStatus("Save failed — edits retained");
       return false;
     } finally {
@@ -258,39 +388,90 @@ export function useWorkspace() {
   }, []);
   function wiki(raw: string, source = doc?.id ?? "") {
     if (!vault) return;
+    if (
+      vault.links.some(
+        (l) => l.source === source && l.raw === raw && l.external,
+      )
+    ) {
+      setLinkChoice({ raw, ids: [], external: true });
+      return;
+    }
     const targets = resolveWiki(raw, source, vault.notes);
-    if (targets.length === 1) openNote(targets[0].id);
+    if (targets.length === 1) openNote(targets[0].id, "follow", source);
     else setLinkChoice({ raw, ids: targets.map((n) => n.id) });
   }
-  async function createNote() {
+  async function createNote(subjectId: string) {
     if (create === null || !vault || busy) return;
     setBusy(true);
     setError("");
     const id =
       create.trim().replaceAll("\\", "/").replace(/\.md$/i, "") + ".md";
     try {
-      const content = `# ${id.split("/").pop()!.slice(0, -3)}\n\n`;
-      const next = await invoke<Snapshot>("save_note", {
-        vaultRoot: vault.root,
-        id,
-        content,
-        revision: null,
-      });
+      const [next, created] = await invoke<[Snapshot, Document]>(
+        "create_note",
+        {
+          vaultRoot: vault.root,
+          subjectId,
+          path: id,
+          vaultRelative: createAtRoot,
+        },
+      );
       setVault(next);
-      const created = await invoke<Document>("read_note", {
-        vaultRoot: vault.root,
-        id,
-      });
+      exploration.enterNote(created.id);
       setDoc(created);
       setText(created.content);
       setCreate(null);
       setConflict(null);
       setStatus("Note created");
+      feedback.action({ kind: "select", node: created.id, subject: subjectId });
     } catch (e) {
-      fail(e);
+      fail(e, true);
     } finally {
       setBusy(false);
     }
+  }
+  async function organize(
+    action: OrganizationAction,
+  ): Promise<Snapshot | null> {
+    const vault = current.current.vault;
+    if (!vault) return null;
+    setBusy(true);
+    setError("");
+    try {
+      const next = await invoke<Snapshot>("organize", {
+        vaultRoot: vault.root,
+        action,
+      });
+      setVault(next);
+      return next;
+    } catch (e) {
+      fail(e, true);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+  function selectLocation(location: Location) {
+    if (
+      JSON.stringify(location) ===
+      JSON.stringify(current.current.vault?.organization.location)
+    )
+      return;
+    guard("Switch location?", () => {
+      void organize({ kind: "select", location }).then((next) => {
+        if (next) {
+          setDoc(null);
+          setText("");
+          setConflict(null);
+          setReview(false);
+          setQuery("");
+          feedback.action({
+            kind: location.subject_id || location.neuron_id ? "focus" : "leave",
+            subject: location.subject_id ?? undefined,
+          });
+        }
+      });
+    });
   }
   async function refresh() {
     if (!vault || busy) return;
@@ -301,7 +482,7 @@ export function useWorkspace() {
       );
       setStatus("Vault refreshed");
     } catch (e) {
-      fail(e);
+      fail(e, true);
     } finally {
       setBusy(false);
     }
@@ -315,9 +496,13 @@ export function useWorkspace() {
         rating,
       });
       setVault(next);
+      feedback.action({
+        kind: rating === "again" ? "forgot" : "remembered",
+        subject: vault.cards.find((c) => c.id === id)?.subject_id,
+      });
       return true;
     } catch (e) {
-      fail(e);
+      fail(e, true);
       return false;
     }
   }
@@ -327,12 +512,16 @@ export function useWorkspace() {
     ) ?? [];
   const due =
     vault?.cards.filter(
-      (c) => !vault.history.cards[c.id] || vault.history.cards[c.id].due <= now,
+      (c) =>
+        inLocation(c, vault.organization.location) &&
+        (!vault.history.cards[c.id] || vault.history.cards[c.id].due <= now),
     ).length ?? 0;
   const selected = vault?.notes.find((n) => n.id === doc?.id);
   const unresolved =
     vault?.links.filter((l) => l.source === doc?.id && !l.target) ?? [];
   return {
+    exploration,
+    navigateGraph,
     vault,
     setVault,
     doc,
@@ -340,6 +529,10 @@ export function useWorkspace() {
     text,
     setText,
     busy,
+    setBusy,
+    fail,
+    organize,
+    selectLocation,
     error,
     setError,
     status,
@@ -348,8 +541,6 @@ export function useWorkspace() {
     setQuery,
     collapsed,
     setCollapsed,
-    filters,
-    setFilters,
     mode,
     setMode,
     panelWidth,
@@ -357,6 +548,8 @@ export function useWorkspace() {
     review,
     setReview,
     create,
+    createAtRoot,
+    setCreateAtRoot,
     setCreate,
     pending,
     setPending,

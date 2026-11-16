@@ -92,6 +92,101 @@ fn schedule_and_metadata_roundtrip() {
     );
 }
 #[test]
+fn recall_locations_share_canonical_recognition_without_changing_identity() {
+    let text = "\u{feff}---\r\ntitle: 'Hidden :: metadata'\r\n---\r\n# A note 🧠\r\n\r\nOrdinary prose: an answer.\r\n`No :: code`\r\n```md\r\nQ: Not a card\r\nA: Code\r\n```\r\n$$\r\nQ: Math\r\nA: Not a card\r\n$$\r\n\r\nQ: What is $F$?\r\nA: **Force** and [[Impulse]].\r\nMeasured in newtons.\r\n\r\nTerm :: Definition\r\nTerm :: Definition\r\n";
+    let note = notes::parse("Physics/n.md", text).unwrap();
+    let cards = flashcards::parse(&note, text);
+    let presentation = flashcards::presentation(text).unwrap();
+    assert_eq!(cards.len(), 2);
+    assert_eq!(presentation.recalls.len(), 3); // Every occurrence is concealed; reviews remain deduplicated.
+    let utf16: Vec<_> = presentation.body.encode_utf16().collect();
+    let ranges: Vec<_> = presentation
+        .recalls
+        .iter()
+        .map(|b| String::from_utf16(&utf16[b.start..b.end]).unwrap())
+        .collect();
+    assert_eq!(
+        ranges[0],
+        "Q: What is $F$?\r\nA: **Force** and [[Impulse]].\r\nMeasured in newtons."
+    );
+    assert_eq!(&ranges[1..], &["Term :: Definition", "Term :: Definition"]);
+    assert_eq!(presentation.recalls[0].content_id, cards[0].content_id);
+    assert_eq!(presentation.recalls[0].question, cards[0].question);
+    assert_eq!(presentation.recalls[0].answer, cards[0].answer);
+    assert_eq!(
+        cards[0].id,
+        notes::hash("What is $F$?\0**Force** and [[Impulse]]. Measured in newtons.")
+    );
+    assert_eq!(
+        presentation.recalls[1].content_id,
+        presentation.recalls[2].content_id
+    );
+    assert!(presentation.body.contains("Ordinary prose"));
+    assert!(!presentation.body.contains("Hidden :: metadata"));
+}
+
+#[test]
+fn rating_previews_are_read_only_and_match_commits_at_one_fixed_time() {
+    let now = 1_700_000_000;
+    for old in [
+        None,
+        Some(flashcards::Review {
+            card_id: "card".into(),
+            last_review: now - 86400,
+            due: now - 1,
+            interval: 7.4,
+            ease: 2.2,
+            reviews: 8,
+            lapses: 2,
+        }),
+    ] {
+        for rating in [Rating::Again, Rating::Hard, Rating::Good, Rating::Easy] {
+            let temp = tempfile::tempdir().unwrap();
+            let root = temp.path().canonicalize().unwrap();
+            if let Some(old) = &old {
+                let mut history = flashcards::History::default();
+                history.cards.insert("card".into(), old.clone());
+                fs::write(
+                    root.join("flashcards.json"),
+                    serde_json::to_string_pretty(&history).unwrap(),
+                )
+                .unwrap();
+            }
+            let before = fs::read(root.join("flashcards.json")).ok();
+            let preview = flashcards::preview_at(&root, "card", now).unwrap();
+            assert_eq!(preview.reference_time, now);
+            assert_eq!(preview.options.len(), 4);
+            assert_eq!(fs::read(root.join("flashcards.json")).ok(), before);
+            let selected = preview
+                .options
+                .iter()
+                .find(|p| std::mem::discriminant(&p.rating) == std::mem::discriminant(&rating))
+                .unwrap();
+            let committed = flashcards::rate_at(&root, "card", rating, now).unwrap();
+            assert_eq!(selected.due, committed.due);
+            assert_eq!(selected.interval_seconds, committed.due - now);
+            assert_eq!(flashcards::load(&root).unwrap().0.cards["card"], committed);
+            assert_eq!(committed.reviews, old.as_ref().map_or(1, |r| r.reviews + 1));
+        }
+    }
+}
+
+#[test]
+fn preview_preserves_corrupt_and_legacy_history() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    for text in ["{broken", "{\"schema_version\":1,\"cards\":{}}"] {
+        fs::write(root.join("flashcards.json"), text).unwrap();
+        let result = flashcards::preview_at(&root, "card", 1000);
+        assert_eq!(result.is_ok(), text.contains("schema_version"));
+        assert_eq!(
+            fs::read_to_string(root.join("flashcards.json")).unwrap(),
+            text
+        );
+        assert!(!root.join(".synapse").exists());
+    }
+}
+#[test]
 fn containment_conflicts_and_unicode() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path().canonicalize().unwrap();

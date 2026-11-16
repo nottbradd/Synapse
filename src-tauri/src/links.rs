@@ -5,13 +5,14 @@ use std::{
     collections::{BTreeSet, HashMap},
     sync::LazyLock,
 };
-static WIKI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[\[([^\[\]\n]+)\]\]").unwrap());
+pub static WIKI: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[\[([^\[\]\n]+)\]\]").unwrap());
 #[derive(Debug, Clone, Serialize)]
 pub struct WikiLink {
     pub source: String,
     pub raw: String,
     pub target: Option<String>,
     pub candidates: Vec<String>,
+    pub external: bool,
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct Edge {
@@ -65,6 +66,13 @@ pub fn resolve(raw: &str, source: &str, notes: &[Note]) -> Vec<String> {
         .collect()
 }
 pub fn build(notes: &mut [Note], contents: &HashMap<String, String>) -> (Vec<WikiLink>, Vec<Edge>) {
+    build_scoped(notes, contents, None)
+}
+pub fn build_scoped(
+    notes: &mut [Note],
+    contents: &HashMap<String, String>,
+    org: Option<&crate::organization::Organization>,
+) -> (Vec<WikiLink>, Vec<Edge>) {
     let mut links = Vec::new();
     let mut edges = BTreeSet::new();
     for note in notes.iter() {
@@ -72,7 +80,23 @@ pub fn build(notes: &mut [Note], contents: &HashMap<String, String>) -> (Vec<Wik
         let content = notes::body(content).map(|(_, b)| b).unwrap_or("");
         for cap in WIKI.captures_iter(&notes::prose(content, false)) {
             let raw = cap[1].to_string();
-            let candidates = resolve(&raw, &note.id, notes);
+            let external = org
+                .and_then(|o| o.subject(&note.subject_id).ok())
+                .is_some_and(|s| {
+                    let relative = s
+                        .root
+                        .as_ref()
+                        .and_then(|r| note.id.strip_prefix(&format!("{r}/")))
+                        .unwrap_or(&note.id);
+                    s.external_links
+                        .get(relative)
+                        .is_some_and(|ls| ls.contains(&raw))
+                });
+            let candidates = if external {
+                Vec::new()
+            } else {
+                resolve(&raw, &note.id, notes)
+            };
             let target = if candidates.len() == 1 {
                 Some(candidates[0].clone())
             } else {
@@ -90,6 +114,7 @@ pub fn build(notes: &mut [Note], contents: &HashMap<String, String>) -> (Vec<Wik
                 raw,
                 target,
                 candidates,
+                external,
             });
         }
     }

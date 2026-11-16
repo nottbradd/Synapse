@@ -1,7 +1,8 @@
 [package]
 name = "synapse"
-version = "0.1.0"
+version = "0.6.0"
 edition = "2021"
+license = "GPL-3.0-only"
 description = "Local Markdown knowledge and revision workspace"
 
 [lib]
@@ -11,8 +12,12 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[features]
+# Only for local deterministic desktop QA. Compiled out of release builds.
+test-api = []
+
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -23,6 +28,19 @@ regex = "1"
 pulldown-cmark = "0.13"
 sha2 = "0.10"
 tempfile = "3"
+uuid = { version = "1", features = ["v4", "serde"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+chrono = "0.4"
+chrono-tz = "0.10"
+zeroize = "1"
+getrandom = "0.3"
+tauri-plugin-notification = "2"
+tauri-plugin-single-instance = "2"
+keyring = { version = "3.6", default-features = false, features = ["windows-native"] }
+tokio = { version = "1", features = ["macros", "sync", "time"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+tauri-plugin-autostart = "2"
 
 [profile.release]
 lto = true

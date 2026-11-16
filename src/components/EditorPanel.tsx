@@ -2,15 +2,17 @@ import {
   FileText,
   X,
   BookOpen,
-  Layers,
+  Columns2,
   Save,
   Circle,
   Check,
 } from "lucide-react";
 import Editor from "./Editor";
 import Markdown from "./Markdown";
+import NoteReading from "./NoteReading";
+import TransitionTitle from "./TransitionTitle";
+import { feedback } from "../interaction/events";
 import type { Workspace } from "../hooks/useWorkspace";
-import { subjects } from "../types";
 type Props = Pick<
   Workspace,
   | "vault"
@@ -33,6 +35,7 @@ type Props = Pick<
   | "setStatus"
   | "status"
   | "unresolved"
+  | "exploration"
 >;
 export default function EditorPanel({
   vault,
@@ -55,6 +58,7 @@ export default function EditorPanel({
   setStatus,
   status,
   unresolved,
+  exploration,
 }: Props) {
   if (!vault || !doc) return null;
   return (
@@ -62,7 +66,11 @@ export default function EditorPanel({
       <header className="editor-header">
         <div>
           <FileText size={15} />
-          <span title={doc.id}>{doc.id}</span>
+          <span title={doc.id}>
+            {vault.organization.subjects.find(
+              (s) => s.id === selected?.subject_id,
+            )?.name ?? "Note"}
+          </span>
         </div>
         <button
           title="Close note"
@@ -72,6 +80,20 @@ export default function EditorPanel({
               setDoc(null);
               setText("");
               setConflict(null);
+              feedback.action({
+                kind: "close",
+                subject: selected?.subject_id,
+                node: doc.id,
+                role:
+                  exploration.scope.kind === "topic" &&
+                  exploration.scope.level > 1
+                    ? "concept"
+                    : "topic",
+                level:
+                  exploration.scope.kind === "topic"
+                    ? exploration.scope.level
+                    : 1,
+              });
             })
           }
         >
@@ -79,15 +101,9 @@ export default function EditorPanel({
         </button>
       </header>
       <div className="note-title">
-        <span
-          className="eyebrow"
-          style={{
-            color: subjects.find((s) => s.id === selected?.subject)?.color,
-          }}
-        >
-          {subjects.find((s) => s.id === selected?.subject)?.name ?? "NOTE"}
-        </span>
-        <h2>{selected?.title ?? doc.id}</h2>
+        <h2 title={selected?.title}>
+          <TransitionTitle text={selected?.title ?? doc.id} />
+        </h2>
       </div>
       <div className="editor-toolbar">
         <div className="segmented inset">
@@ -103,7 +119,7 @@ export default function EditorPanel({
               ) : m === "read" ? (
                 <BookOpen size={13} />
               ) : (
-                <Layers size={13} />
+                <Columns2 size={13} />
               )}
               <span>{m[0].toUpperCase() + m.slice(1)}</span>
             </button>
@@ -184,7 +200,16 @@ export default function EditorPanel({
         )}{" "}
         {mode !== "edit" && (
           <div className="preview">
-            <Markdown text={text} onWiki={wiki} />
+            {mode === "read" ? (
+              <NoteReading
+                key={doc.id}
+                text={text}
+                title={selected?.title}
+                onWiki={wiki}
+              />
+            ) : (
+              <Markdown text={text} onWiki={wiki} />
+            )}
           </div>
         )}
       </div>
@@ -198,7 +223,11 @@ export default function EditorPanel({
             <button key={i} onClick={() => wiki(l.raw)}>
               {l.raw}
               <span>
-                {l.candidates.length ? "Choose target" : "Create note"}
+                {l.external
+                  ? "External reference"
+                  : l.candidates.length
+                    ? "Choose target"
+                    : "Create note"}
               </span>
             </button>
           ))}
@@ -213,10 +242,7 @@ export default function EditorPanel({
           )}{" "}
           {dirty ? "Unsaved edits" : status}
         </span>
-        <span>
-          {text.trim() ? text.trim().split(/\s+/).length : 0} words{" "}
-          <span className="separator">·</span> Markdown
-        </span>
+        <span>{text.trim() ? text.trim().split(/\s+/).length : 0} words</span>
       </footer>
     </section>
   );

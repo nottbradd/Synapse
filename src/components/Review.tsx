@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { ArrowUpRight, Check, RotateCcw, X } from "lucide-react";
-import type { Rating, Snapshot, Subject } from "../types";
-import { subjects } from "../types";
+import type { Rating, Snapshot } from "../types";
+import { inLocation } from "../types";
 import Markdown from "./Markdown";
+import { feedback } from "../interaction/events";
+import { formatInterval, useRatingPreviews } from "../hooks/useRatingPreviews";
 export default function Review({
   snapshot,
   onRate,
@@ -16,7 +18,7 @@ export default function Review({
   onSource: (id: string) => void;
   onWiki: (raw: string, source: string) => void;
 }) {
-  const [subject, setSubject] = useState<Subject | "all">("all"),
+  const [subject, setSubject] = useState("all"),
     [revealedId, setRevealedId] = useState<string | null>(null),
     [busy, setBusy] = useState(false),
     [done, setDone] = useState(0),
@@ -26,7 +28,9 @@ export default function Review({
     return () => clearInterval(timer);
   }, []);
   const cards = snapshot.cards.filter(
-    (c) => subject === "all" || c.subject === subject,
+    (c) =>
+      inLocation(c, snapshot.organization.location) &&
+      (subject === "all" || c.subject_id === subject),
   );
   const due = cards
     .filter(
@@ -42,6 +46,7 @@ export default function Review({
   const card = due[0],
     fresh = due.filter((c) => !snapshot.history.cards[c.id]).length;
   const revealed = !!card && revealedId === card.id;
+  const previews = useRatingPreviews(snapshot, card?.id);
   const retry = cards
     .filter(
       (c) =>
@@ -53,10 +58,16 @@ export default function Review({
         snapshot.history.cards[a.id].due - snapshot.history.cards[b.id].due,
     )[0];
   async function rate(rating: Rating) {
-    if (!card || busy) return;
+    if (!card || !revealed || !previews.data || busy) return;
     setBusy(true);
     try {
       if (await onRate(card.id, rating)) {
+        if (rating !== "again" && due.length === 1 && !retry)
+          feedback.action({
+            kind: "complete",
+            subject: card.subject_id,
+            node: card.source,
+          });
         setRevealedId(null);
         setDone((n) => n + 1);
         setNow(Date.now() / 1000);
@@ -91,15 +102,14 @@ export default function Review({
   return (
     <div className="overlay">
       <section
-        className="review-dialog"
+        className="review-dialog glass"
         role="dialog"
         aria-modal="true"
         aria-label="Flashcard revision"
       >
         <header>
           <div>
-            <span className="eyebrow">RETRIEVAL PRACTICE</span>
-            <h2>One connection at a time.</h2>
+            <h2>Review</h2>
           </div>
           <button
             title="Close review"
@@ -115,16 +125,30 @@ export default function Review({
             aria-label="Review subject"
             value={subject}
             onChange={(e) => {
-              setSubject(e.target.value as Subject | "all");
+              setSubject(e.target.value);
               setRevealedId(null);
             }}
           >
-            <option value="all">All subjects</option>
-            {subjects.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
+            <option value="all">Selected location</option>
+            {snapshot.organization.subjects
+              .filter(
+                (s) =>
+                  !snapshot.organization.location.neuron_id ||
+                  s.neuron_id === snapshot.organization.location.neuron_id,
+              )
+              .filter(
+                (s) =>
+                  !snapshot.organization.location.subject_id ||
+                  s.id === snapshot.organization.location.subject_id,
+              )
+              .map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                  {!snapshot.organization.location.neuron_id
+                    ? ` — ${snapshot.organization.neurons.find((n) => n.id === s.neuron_id)?.name}`
+                    : ""}
+                </option>
+              ))}
           </select>
           <span>
             {due.length - fresh} due · {fresh} new · {done} reviewed
@@ -135,14 +159,12 @@ export default function Review({
         ) : card ? (
           <>
             <div className="review-content" key={card.id}>
-              <span className="eyebrow">QUESTION</span>
               <Markdown
                 text={card.question}
                 onWiki={(raw) => onWiki(raw, card.source)}
               />
               {revealed && (
                 <div className="answer">
-                  <span className="eyebrow">ANSWER</span>
                   <Markdown
                     text={card.answer}
                     onWiki={(raw) => onWiki(raw, card.source)}
@@ -154,10 +176,19 @@ export default function Review({
               className="source-link"
               onClick={() => onSource(card.source)}
             >
-              {card.source}
+              {snapshot.notes.find((n) => n.id === card.source)?.title ??
+                "Open source note"}
               <ArrowUpRight size={13} />
             </button>
             <footer>
+              {previews.error && (
+                <div className="interval-error" role="alert">
+                  <span>{previews.error}</span>
+                  <button onClick={previews.retry} disabled={busy}>
+                    Retry intervals
+                  </button>
+                </div>
+              )}
               {!revealed ? (
                 <button
                   className="primary reveal"
@@ -171,7 +202,7 @@ export default function Review({
                     (r, i) => (
                       <button
                         className="raised"
-                        disabled={busy}
+                        disabled={busy || !previews.data}
                         key={r}
                         onClick={() => void rate(r)}
                       >
@@ -179,13 +210,13 @@ export default function Review({
                           {r[0].toUpperCase() + r.slice(1)} <kbd>{i + 1}</kbd>
                         </span>
                         <small>
-                          {r === "again"
-                            ? "1 minute"
-                            : r === "hard"
-                              ? "Short interval"
-                              : r === "good"
-                                ? "Standard interval"
-                                : "Long interval"}
+                          {previews.data
+                            ? formatInterval(
+                                previews.data.options.find(
+                                  (option) => option.rating === r,
+                                )!.interval_seconds,
+                              )
+                            : "…"}
                         </small>
                       </button>
                     ),
@@ -199,10 +230,10 @@ export default function Review({
             {retry ? <RotateCcw size={28} /> : <Check size={30} />}
             <h2>
               {retry
-                ? "Give it a moment."
+                ? "Retry shortly"
                 : cards.length
-                  ? "You’re up to date."
-                  : "Room to remember."}
+                  ? "Reviews complete"
+                  : "No cards in this location"}
             </h2>
             <p>
               {retry
@@ -212,7 +243,7 @@ export default function Review({
                   : "Add Q: / A: pairs or Term :: Definition to your notes."}
             </p>
             <button className="primary" onClick={onClose}>
-              Back to your notes
+              Close review
             </button>
           </div>
         )}

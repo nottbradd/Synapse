@@ -1,144 +1,75 @@
 # Synapse
 
-A compact, offline Windows workspace for Markdown notes, linked knowledge, and flashcard revision. Built with Tauri v2, Rust, React, TypeScript, Vite, Tailwind, CodeMirror 6, and a Canvas force graph.
+A Windows workspace for Markdown notes, linked knowledge, flashcards, quizzes and reminders. Explore your notes in a matte 2D graph, revise locally, and optionally create editable study drafts with AI.
 
-Open a folder to start. Synapse never populates a personal vault with sample content. A clearly marked synthetic vault is available in `fixtures/demo-vault`; copy it to a temporary folder before experimenting.
+![Synapse exploring a synthetic Momentum network](docs/images/exploration.png)
 
-## Develop and build
+## Install
 
-Windows prerequisites:
+Download the Windows x64 installer and SHA-256 checksum from [Releases](https://github.com/nottbradd/Synapse/releases). Verify the download in PowerShell with `Get-FileHash .\Synapse_0.6.0_x64-setup.exe -Algorithm SHA256`, then run the installer.
 
-- Node.js 24 LTS or newer, with npm.
-- Stable Rust using the `x86_64-pc-windows-msvc` toolchain.
-- Visual Studio 2022 Build Tools with **Desktop development with C++**, including the Windows SDK.
-- Microsoft Edge WebView2 Runtime (normally present on Windows 10/11).
+**The installer is unsigned.** Windows may identify its publisher as unknown. Download only from this repository and compare the checksum before deciding whether to install. No administrator access is normally required for the per-user installation.
 
-See the official [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/). Tailwind uses its [Vite plugin](https://tailwindcss.com/docs/installation/using-vite).
+Targets Windows 10 22H2 and Windows 11, x64, with Microsoft Edge WebView2 Runtime. The current release is verified on Windows 11; Windows 10 has not received a separate hardware test. The installer can obtain WebView2 if missing, which requires internet access. There are no macOS, Linux or ARM installers in this release.
+
+Open a folder of Markdown notes to start. Synapse does not populate your vault with sample content. For a demonstration, copy `fixtures/demo-vault` to a temporary folder.
+
+## Explore and study
+
+- **Overview → subject subnetwork → topic → linked concepts.** Subject junctions use actual membership; a topic expands its real WikiLinks, including links across subjects. Each view is one hop, so cyclic links never create nested copies. Expanding a graph never calls AI.
+- **Back** restores the previous scope, selected note, camera and layout. The overview control returns to the starting network. Closing a note keeps the current network. Graph exploration does not reassign notes or change the review scope selected in the sidebar.
+- Use search, hover, wheel zoom or **Browse** to reach notes in dense networks. Neurons contain subjects, and identically named subjects in different Neurons remain distinct.
+- Edit Markdown with WikiLink completion, math and explicit saves. Unsaved-edit and disk-conflict guards protect navigation. Review flashcards, take saved quizzes and manage reminders offline.
+- **Preferences** provides persistent Sound, Volume, and Follow Windows / Full / Reduced animation settings. Original related chimes distinguish warm subnetworks, clear topics and lighter linked concepts. Reduced mode keeps navigation and relationships without spatial travel or moving currents. Typing and hover stay silent.
+
+## Storage and privacy
+
+Markdown stays in the folder you open. Organization and study metadata live under the vault's `.synapse` directory; review schedules live in `flashcards.json`. Existing note paths, identities and WikiLink semantics are preserved. Portable subject imports/exports retain explicit history choices; imported reminders start paused. See [vault compatibility](MIGRATION.md).
+
+Device settings and the last vault location live under `%APPDATA%\com.synapse.study`. Sound/motion preferences live in WebView2 local storage. Credentials are stored separately in Windows Credential Manager and are not included in vault exports. Core editing, graph navigation, saved study and local reminder scheduling need no account or network service.
+
+AI is optional and requires an explicit generation action:
+
+| Mode             | Connection and access                                                                                                                                                                                                       |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Personal API key | Your key calls OpenAI directly from Rust. API billing is separate from a ChatGPT subscription.                                                                                                                              |
+| Synapse AI       | A private invitation and explicit content-transfer consent are required. Requests pass through the Synapse Cloudflare gateway to OpenAI; the owner's service key stays on the server. Public downloads do not grant access. |
+
+The source preview identifies the selected content before generation. Quiz/card requests send selected note bodies, titles, identifiers and your instructions; reminder requests use titles/references and scheduling context. Generated output remains an editable, unsaved draft until you explicitly save it. Check its accuracy. The gateway stores authentication and usage/accounting metadata; provider handling remains subject to OpenAI's policies. No automatic switch to personal billing occurs when hosted AI is unavailable.
+
+The current hosted pilot is limited to **5 people**, **10 generations/person/UTC day**, **3 submissions/person/minute**, and **one active generation/person**. Shared spending admission is bounded by **US$5/day, US$60/month and US$60 cumulative**. Service ends no later than **25 November 2026 at 11 am Australia/Sydney (00:00 UTC)**; there is no automatic funding renewal. Earlier quota, funding, credential or availability limits can stop generation. Saved local features continue working. [Owner service guide](backend/ai/README.md).
+
+Reminders need the installed app process and Windows notifications. **Keep reminders running when the window closes** leaves Synapse in the tray; **Quit** stops delivery until the next launch. Sign-in startup is optional. Missed reminders appear as catch-up entries. The app does not install an OS service that delivers after full exit.
+
+## Develop
+
+Install Node.js 24 LTS or newer, stable Rust (MSVC x64), Visual Studio 2022 Build Tools with Desktop development with C++, Windows SDK, and WebView2. See [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
 
 ```powershell
 npm ci
+npm ci --prefix backend/ai
 npm run tauri dev
 
-# Production desktop app and NSIS installer
+# Public origin only; no service credential belongs in a desktop build.
+$env:SYNAPSE_AI_URL = 'https://synapse-ai.nottbradd.workers.dev'
 npm run tauri build
 ```
 
-The standalone executable is `src-tauri/target/release/synapse.exe`. The installer is written under `src-tauri/target/release/bundle/nsis/`. It is unsigned; signing is a separate distribution step. `npm run dev` serves only the frontend and cannot access a vault without Tauri.
+Without that optional build variable, hosted AI reports that it is not configured. The executable is under `src-tauri/target/release`; the NSIS installer is under `src-tauri/target/release/bundle/nsis`. `npm run dev` alone serves the UI without native vault access. Each release includes [source archives and rebuilding instructions](docs/SOURCE.md), matching source tags, lockfiles and build scripts.
 
 ```powershell
 npm run typecheck
 npm run lint
 npm test
+npm test --prefix backend/ai
 npm run build
 cargo fmt --manifest-path src-tauri/Cargo.toml --check
-cargo test --manifest-path src-tauri/Cargo.toml -- --nocapture
-cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+cargo test --locked --manifest-path src-tauri/Cargo.toml
+cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 ```
 
-The Windows CI workflow runs these checks and builds an installer. Dependencies are locked in `package-lock.json` and `src-tauri/Cargo.lock`.
+Gateway tests use a local database and mocked provider, never owner-funded inference. [Validation](VALIDATION.md), [interaction architecture](INTERACTION.md), [detailed user guide](docs/USER_GUIDE.md), and [asset provenance](docs/ASSETS.md).
 
-## Workspace
+## License
 
-The collapsible sidebar provides search, note creation, and revision. Click a graph node or sidebar note to open the resizable editor. Switch between Edit, Split, and Read. Save explicitly with **Ctrl+S**. Note navigation, vault switching, and window closing protect unsaved edits. Subject buttons filter the graph; search dims nonmatching nodes. Drag nodes to pin their position during the current vault session, pan, zoom, fit, or reset the camera. Camera and positions survive opening notes and ordinary index updates; they are not persisted across restarts.
-
-Only Markdown files are study data. Rust recursively indexes them in the background. `.git`, `node_modules`, `target`, `dist`, `build`, `.synapse`, `.obsidian`, and `.trash` are ignored. Notes are identified by normalized vault-relative paths, including their `.md` extension, rather than titles. Existing notes are never reorganized automatically.
-
-Subjects are inferred from recognized YAML frontmatter first, then the top-level folder, then General. Aliases are case insensitive; spaces and underscores normalize to hyphens.
-
-| Subject                | Aliases                                   | Graph color |
-| ---------------------- | ----------------------------------------- | ----------- |
-| Specialist Mathematics | specialist, specialist-mathematics, spesh | `#a855f7`   |
-| Mathematical Methods   | methods, mathematical-methods             | `#3b82f6`   |
-| Physics                | physics                                   | `#10b981`   |
-| English Language       | english-language, englang                 | `#f59e0b`   |
-| General / Unassigned   | general, unassigned                       | `#64748b`   |
-
-```markdown
----
-title: Electromagnetic induction
-subject: physics
----
-
-Inline mathematics: $\Phi_B=BA\cos\theta$.
-
-$$
-\mathcal E=-N\frac{d\Phi_B}{dt}
-$$
-```
-
-Frontmatter is parsed as YAML, never with regex. Ordinary saves preserve the exact editor buffer, including frontmatter. Invalid frontmatter produces a warning while keeping the note accessible for repair.
-
-## WikiLinks
-
-Supported forms: `[[Note]]`, `[[Folder/Note]]`, `[[Note|Display label]]`, and `[[Note#Heading]]`. Headings are accepted for target resolution; navigation opens the note rather than scrolling to a heading. `[[#Heading]]` refers to the current note. Matching is case insensitive. Explicit paths with a folder resolve against the vault root. Short names match filenames or frontmatter titles only when unambiguous, including duplicates at the vault root. Code blocks, inline code, HTML blocks, and YAML are excluded from extraction. Graph edges are unique undirected note pairs; self-links do not increase node size.
-
-Unresolved links open an explicit create action. Ambiguous links present candidate paths. Typing `[[` in the editor opens a searchable completion menu. Arrow keys navigate, Enter selects, and Escape dismisses. Completion inserts a vault-relative filename path, avoiding ambiguity for notes in folders. Explicit root links such as `[[./Note]]` identify a root note even when its filename is duplicated in another folder. Autocomplete inserts this form for root notes.
-
-## Flashcards
-
-```markdown
-Q: What is Lenz's law?
-A: The induced current opposes the change in magnetic flux that produces it.
-This is another line of the same answer.
-
-Term :: Definition
-```
-
-- A question starts with `Q: ` and the immediately following line starts with `A: ` (leading whitespace is allowed). The answer continues until a blank line, a new `Q: `, an ATX heading, or end of note.
-- A single-line card uses exactly one **space-colon-colon-space** delimiter. Both sides must be nonempty. Table, heading, and HTML lines do not become single-line cards. Math regions do not provide delimiters.
-- YAML, fenced/indented code, inline code, and HTML are excluded. Use code formatting when writing examples of flashcard syntax.
-- Both sides render safe Markdown and bundled KaTeX. Raw HTML and remote images are not executed or fetched. External URLs are shown as text with a tooltip; opening external sites and rendering local attachments are outside this version's scope.
-
-Card IDs are SHA-256 hashes of whitespace-normalized question and answer text separated by a NUL byte. Formatting and answer changes reset the schedule; whitespace changes and moving notes preserve it. Identical cards across notes share one schedule and are shown once, with the lexicographically first source path. Deleted cards disappear from revision, but their history remains in metadata so restoring a card restores its schedule. There is no automatic history pruning.
-
-## Scheduling and local storage
-
-Revision shows due and new cards by subject. Reveal with Space, then rate with **1 Again**, **2 Hard**, **3 Good**, or **4 Easy**. Shortcuts ignore text inputs. Again cards are due in 60 seconds and can reappear in the same open session. Future cards stay out of the queue. Progress is persisted after each rating.
-
-The deterministic SM-2-inspired scheduler starts at ease 2.5:
-
-| Rating | Next interval                                     | Ease change                        |
-| ------ | ------------------------------------------------- | ---------------------------------- |
-| Again  | 60 seconds                                        | −0.20, minimum 1.3; lapse count +1 |
-| Hard   | max(0.5 days, previous × 1.2)                     | −0.15, minimum 1.3                 |
-| Good   | 1 day when previous <1, otherwise previous × ease | none                               |
-| Easy   | max(4 days, previous × new ease × 1.3)            | +0.15, maximum 3.5                 |
-
-Intervals are capped at 3650 days. Due dates use UTC Unix seconds and the computer clock. Each rating increments the review count. This is a small transparent scheduler, not a claim of equivalence with Anki or FSRS.
-
-`flashcards.json` lives at the vault root and stores schema version 1, card ID, last review, due timestamp, interval in days, ease, reviews, and lapses. Missing metadata starts a new history. Malformed or unsupported metadata blocks reviews without rewriting the file; repair it, or explicitly rename it outside Synapse to start fresh. The selected vault path is saved in `%APPDATA%\com.synapse.study\last-vault.json`. Tauri/WebView2 may also maintain runtime data in the application data directory. No accounts, analytics, backend service, or CDN is used. KaTeX fonts and all study assets ship with the app.
-
-Writes use a synced temporary file in the destination directory followed by atomic persistence, with no-clobber semantics for new notes. Revision hashes detect external changes before replacement. The UI offers disk-versus-editor conflict resolution, and a failed save leaves the editor intact. As with other optimistic file editors, an unrelated writer can still race the final filesystem replacement; this is not a cross-application locking protocol. Use a backup for valuable notes. Symlink escapes, junction escapes, traversal, alternate data streams, and reserved Windows names are rejected. Watcher events are coalesced, and unchanged snapshots (including the app's own saves) are suppressed. Old watchers stop on vault changes.
-
-## Source layout
-
-```text
-src/
-  App.tsx                 Workspace layout and dialogs
-  components/             Sidebar, editor panel, graph, Markdown, revision
-  hooks/                  Vault lifecycle, edit protection, modal focus
-  types.ts, wiki.ts        Typed IPC contracts and preview navigation
-  styles.css              Minimal zinc palette and interaction states
-src-tauri/src/
-  commands.rs             Async IPC and active-vault state
-  vault.rs, watcher.rs     Containment, atomic writes, scanning, change events
-  notes.rs, subjects.rs    Markdown/YAML and metadata
-  links.rs                Deterministic resolution and graph edges
-  flashcards.rs           Parsing, identities, metadata, scheduler
-  errors.rs, tests.rs      Typed errors and regression coverage
-fixtures/demo-vault/       Synthetic study notes only
-.github/workflows/         Windows checks and desktop packaging
-```
-
-See `VALIDATION.md` for the checks actually run, measured dataset, and outstanding limitations.
-
-The desktop integration scripts attach to a real WebView2 process and create disposable vaults under ignored `.local/`. To reproduce them, launch the production executable with a local debugging endpoint:
-
-```powershell
-$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS='--remote-debugging-port=9222'
-Start-Process .\src-tauri\target\release\synapse.exe
-node scripts/desktop-smoke.mjs
-node scripts/desktop-extended.mjs
-```
-
-The extended test waits through an actual 60-second retry and opens 500 synthetic notes. To verify restart and offline persistence, run the smoke script again, close and restart the executable, then run `node scripts/desktop-offline.mjs`. Offline verification uses Chromium network emulation, including a production-page reload. Close the test instance and remove `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` before a normal launch. The CI workflow runs unit/static checks and builds the desktop installer; these interactive desktop scripts are run locally.
+Copyright © 2026 nottbradd and contributors. Synapse is licensed under **GNU GPL version 3 only (GPL-3.0-only)**, without warranty; see [LICENSE](LICENSE) and [NOTICE](NOTICE). Distributed modified versions must comply with that license, including its corresponding-source requirements. Third-party components retain their own licenses, listed in `THIRD_PARTY_NOTICES.txt` and `public/licenses`. The code license does not provide hosted AI access, credits, credentials or a service guarantee.

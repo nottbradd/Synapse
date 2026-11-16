@@ -1,0 +1,21 @@
+{
+  "name": "synapse-ai",
+  "private": true,
+  "version": "0.6.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test testing/*.test.mjs",
+    "dev": "wrangler dev --local",
+    "dev:mock": "wrangler dev --local --config testing/wrangler.jsonc",
+    "deploy": "node owner.mjs check-target --target remote && wrangler deploy",
+    "owner": "node owner.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "4.156.1",
+    "miniflare": "5.20261101.0-beta"
+  },
+  "license": "GPL-3.0-only"
+}

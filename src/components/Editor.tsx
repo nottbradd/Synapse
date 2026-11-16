@@ -103,9 +103,9 @@ export default function Editor({
             {
               "&": {
                 height: "100%",
-                backgroundColor: "#111113",
-                color: "#d4d4d8",
-                fontSize: "13px",
+                backgroundColor: "#1b2228",
+                color: "#dbe4ea",
+                fontSize: "14px",
               },
               ".cm-content": {
                 fontFamily: "Consolas, monospace",
@@ -113,8 +113,8 @@ export default function Editor({
                 caretColor: "#fafafa",
               },
               ".cm-gutters": {
-                backgroundColor: "#111113",
-                color: "#52525b",
+                backgroundColor: "#1b2228",
+                color: "#82939f",
                 border: "none",
               },
               ".cm-activeLine": { backgroundColor: "#ffffff04" },

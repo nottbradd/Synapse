@@ -1,0 +1,14 @@
+{
+  "seats": 5,
+  "daily_limit": 10,
+  "minute_limit": 3,
+  "enrollment_open": true,
+  "funding": "credit",
+  "service_expires": "SET_AN_EXPLICIT_FUTURE_UTC_DEADLINE",
+  "credit_expires": "SET_THE_VERIFIED_GRANT_EXPIRY_IN_UTC",
+  "credential_expires": null,
+  "day_usd": "0.25",
+  "month_usd": "1.00",
+  "lifetime_usd": "1.00",
+  "pricing_revision": "2026-11-16-gpt54mini-v1"
+}

@@ -5,6 +5,8 @@ const notes: Note[] = ["a.md", "Physics/a.md", "b.md"].map((id) => ({
   id,
   title: id.split("/").pop()!.slice(0, -3),
   subject: "general",
+  subject_id: "subject",
+  neuron_id: "neuron",
   revision: "",
   neighbors: 0,
 }));

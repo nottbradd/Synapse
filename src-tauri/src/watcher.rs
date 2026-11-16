@@ -46,7 +46,9 @@ pub fn start(
                     !matches!(e.kind, notify::EventKind::Access(_))
                         && e.paths.iter().any(|p| {
                             p.extension().is_some_and(|e| e.eq_ignore_ascii_case("md"))
-                                || p.file_name().is_some_and(|n| n == "flashcards.json")
+                                || p.file_name().is_some_and(|n| {
+                                    n == "flashcards.json" || n == "organization.json"
+                                })
                                 || p.is_dir()
                                 || matches!(
                                     e.kind,
