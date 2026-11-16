@@ -4,7 +4,7 @@
 
 No vault, study, review, subject-package or device schema changes are required. The approved Clean note is bundled in the frontend and replaces the previous synthesized relay material. Existing Sound, Volume and Animations values are read unchanged; this upgrade does not reset them. Existing installations retain their provider and personal credential entry.
 
-The distributed build now contains the public Synapse gateway origin. This does not enroll a device, grant consent or change its selected provider. The gateway remains paused pending verified funding deadlines. Its D1 ledger is retained across configuration changes; a later monthly grant is an explicit funding update, never a reset of cumulative spending or participant quotas.
+The distributed build now contains the public Synapse gateway origin. Installing it does not enroll a device, grant consent or change its selected provider. The gateway is active for private invitations following the owner trial, with an explicitly approved conservative funding cutoff of 25 November 2026 at 00:00 UTC. Its D1 ledger is retained across configuration changes; a later monthly grant is an explicit funding update, never a reset of cumulative spending or participant quotas.
 
 ## Upgrade from v0.1
 

@@ -77,6 +77,8 @@ Endpoint overrides require **both** debug mode and `test-api`; only loopback HTT
 
 ## Prepare a separate live deployment
 
+The current deployment above is already active and its owner trial is complete. These bootstrap instructions describe a new deployment; they are not a reason to recreate the current database, identity or paid trial.
+
 1. Create a **dedicated OpenAI project and service account for Synapse**. Review data settings, available funding, exact grant expiry, service/key expiry and actual provider spend controls. Restrict the key to Responses creation and the pinned model where supported. Never put it in chat, source, desktop settings, command arguments or packages. Calendar's project/key/database must remain separate.
 2. For a new deployment, authenticate as the owner and create a dedicated D1 database, then put its verified UUID into `wrangler.jsonc`. The current Synapse database above already exists: do not recreate it or reapply the bootstrap as a spending reset. The CLI rejects placeholder or mismatched database IDs.
 
@@ -97,7 +99,7 @@ node owner.mjs usage --target remote
 
 The private helper verifies the remote database identity before accepting a SecureString, sends the key only through Wrangler's redirected stdin, suppresses child output and clears its transient character buffer. It writes no key file, argument or environment variable. Do not capture the reveal dialog, terminal input or clipboard. After entry, navigate away from the provider reveal page before any automation observation. Verify only `wrangler secret list`, masked provider metadata and deployment IDs. On this workstation, invoke Wrangler directly from `backend/ai`; `npm --prefix` can prevent discovery of the installed encrypted-auth keyring.
 
-3. Check the deployed `/health` URL: service must be `synapse-ai`, paused must be true. For a new installation, copy `owner-config.example.json` to ignored `owner-config.json`; do not overwrite the prepared rollout file. Its deadlines are intentionally invalid until verified. Choose all three ceilings explicitly; example dollar amounts are suggestions, not active defaults. Use `funding:"credit"` only with a verified `credit_expires`. Use `"paid"` only for previously authorized funding, with `credit_expires:null`. Always set a finite `service_expires`, and set `credential_expires` when applicable. Dates are exact UTC instants, `YYYY-MM-DDTHH:mm:ssZ`. No grace period or assumed renewal applies. Configure while paused:
+3. For a fresh deployment, check `/health`: service must be `synapse-ai`, paused must be true. Copy `owner-config.example.json` to ignored `owner-config.json` only for a new installation; do not overwrite the current applied policy. The example's deadlines are intentionally invalid until reviewed. Choose all three ceilings explicitly; example amounts are suggestions, not active defaults. Use `funding:"credit"` with a verified grant deadline, or an explicitly owner-approved earlier funding cutoff tied to a currently verified balance and documented as such. Never claim the latter is the provider's precise expiry. Use `"paid"` only for previously authorized funding, with `credit_expires:null`. Always set a finite `service_expires`, and set `credential_expires` when applicable. Dates are exact UTC instants, `YYYY-MM-DDTHH:mm:ssZ`. No grace period or assumed renewal applies. Configure while paused:
 
 ```powershell
 node owner.mjs configure --target remote --file owner-config.json
