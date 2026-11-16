@@ -1,3 +1,5 @@
+import { noteBuffer } from "./note";
+
 export const AUDIO = {
   voices: 6,
   gate: 0.06,
@@ -87,23 +89,42 @@ export class VoiceBudget {
 export function subjectRegister(id = "") {
   let h = 0;
   for (const c of id) h = (Math.imul(h, 31) + c.charCodeAt(0)) | 0;
-  return 0.96 + (((h >>> 0) % 100) / 100) * 0.12;
+  return 0.996 + (((h >>> 0) % 100) / 100) * 0.008;
 }
-type Voice = { sources: AudioBufferSourceNode[]; nodes: AudioNode[] };
-// This synth also accepts OfflineAudioContext for deterministic mix/cleanup tests.
-export class TactileSynth {
+type Voice = { source: AudioBufferSourceNode; nodes: AudioNode[] };
+const material: Record<
+  Cue,
+  { duration: number; level: number; cutoff: number }
+> = {
+  select: { duration: 0.225, level: 1, cutoff: 12000 },
+  follow: { duration: 0.215, level: 0.9, cutoff: 10000 },
+  close: { duration: 0.16, level: 0.66, cutoff: 2400 },
+  focus: { duration: 0.2, level: 0.85, cutoff: 10000 },
+  leave: { duration: 0.17, level: 0.65, cutoff: 2800 },
+  remembered: { duration: 0.225, level: 0.95, cutoff: 12000 },
+  forgot: { duration: 0.16, level: 0.72, cutoff: 2200 },
+  import: { duration: 0.22, level: 0.88, cutoff: 10000 },
+  draft: { duration: 0.22, level: 0.88, cutoff: 10000 },
+  connect: { duration: 0.19, level: 0.82, cutoff: 8000 },
+  complete: { duration: 0.225, level: 1, cutoff: 12000 },
+  error: { duration: 0.15, level: 0.7, cutoff: 2200 },
+  arrival: { duration: 0.125, level: 0.2, cutoff: 2600 },
+};
+// The same production voice graph accepts OfflineAudioContext for mix tests.
+export class NoteSynth {
   readonly budget = new VoiceBudget();
   readonly master: GainNode;
   private compressor: DynamicsCompressorNode;
   private limiter: WaveShaperNode;
+  private sample: AudioBuffer;
   private active = new Map<string, Voice>();
-  private seed = 9147;
   private muted = false;
   private disposed = false;
   constructor(
     readonly context: BaseAudioContext,
     volume: number,
   ) {
+    this.sample = noteBuffer(context);
     this.compressor = context.createDynamicsCompressor();
     this.compressor.threshold.value = -23;
     this.compressor.knee.value = 3;
@@ -125,14 +146,6 @@ export class TactileSynth {
       .connect(this.master)
       .connect(context.destination);
   }
-  private random() {
-    let x = this.seed;
-    x ^= x << 13;
-    x ^= x >>> 17;
-    x ^= x << 5;
-    this.seed = x;
-    return (x >>> 0) / 4294967296;
-  }
   get activeVoices() {
     return this.active.size;
   }
@@ -151,15 +164,14 @@ export class TactileSynth {
   }
   cancel(ids?: string[]) {
     for (const id of ids ?? [...this.active.keys()]) {
-      const v = this.active.get(id);
-      if (v) {
-        for (const source of v.sources)
-          try {
-            source.stop();
-          } catch {
-            /* already stopped */
-          }
-        v.nodes.forEach((n) => n.disconnect());
+      const voice = this.active.get(id);
+      if (voice) {
+        try {
+          voice.source.stop();
+        } catch {
+          /* already stopped */
+        }
+        voice.nodes.forEach((n) => n.disconnect());
         this.active.delete(id);
       }
       this.budget.remove(id);
@@ -178,133 +190,47 @@ export class TactileSynth {
     if (this.muted || this.disposed || e.at < c.currentTime - AUDIO.stale)
       return false;
     const at = Math.max(c.currentTime, e.at),
-      life = 0.15;
+      tone = material[e.kind],
+      life = tone.duration;
     this.budget.prune(c.currentTime);
     const reservation = this.budget.reserve({
       id: e.id,
       at,
-      end: at + life,
+      end: at + life + 0.006,
       key: `${e.kind}:${e.subject ?? ""}`,
       priority: e.priority ?? (e.kind === "arrival" ? 1 : 10),
     });
     this.cancel(reservation.evicted);
     if (!reservation.accepted) return false;
-    const voice: Voice = { sources: [], nodes: [] };
-    this.active.set(e.id, voice);
-    const bus = c.createGain(),
+    const source = c.createBufferSource(),
+      bus = c.createGain(),
+      filter = c.createBiquadFilter(),
       pan = c.createStereoPanner();
-    voice.nodes.push(bus, pan);
-    pan.pan.value = e.pan ?? 0;
-    const dark =
-      e.kind === "forgot" || e.kind === "error" || e.kind === "close";
-    bus.gain.value =
-      (e.level ?? 0.8) * (dark ? 0.64 : e.kind === "arrival" ? 0.28 : 0.82);
-    bus.connect(pan).connect(this.compressor);
-    const shade =
-      subjectRegister(e.subject) *
-      (e.brightness ?? 1) *
-      (dark ? 0.83 : 1) *
-      (0.985 + 0.03 * this.random());
-    const burst = (
-      offset: number,
-      duration: number,
-      gain: number,
-      frequency: number,
-      q: number,
-      highpass = 0,
-    ) => {
-      const buffer = c.createBuffer(
-          1,
-          Math.ceil(c.sampleRate * duration),
-          c.sampleRate,
-        ),
-        samples = buffer.getChannelData(0);
-      for (let i = 0; i < samples.length; i++)
-        samples[i] =
-          (this.random() * 2 - 1) *
-          Math.min(1, i / 16) *
-          Math.exp((-6 * i) / samples.length) *
-          Math.min(1, (samples.length - 1 - i) / 20);
-      const source = c.createBufferSource(),
-        filter = c.createBiquadFilter(),
-        amp = c.createGain();
-      source.buffer = buffer;
-      filter.type = q ? "bandpass" : "lowpass";
-      filter.frequency.value = frequency * shade;
-      filter.Q.value = q || 0.55;
-      amp.gain.value = gain;
-      voice.sources.push(source);
-      voice.nodes.push(source, filter, amp);
-      source.connect(filter).connect(amp);
-      if (highpass) {
-        const hp = c.createBiquadFilter();
-        hp.type = "highpass";
-        hp.frequency.value = highpass;
-        voice.nodes.push(hp);
-        amp.connect(hp).connect(bus);
-      } else amp.connect(bus);
-      source.onended = () => {
-        voice.sources = voice.sources.filter((s) => s !== source);
-        source.disconnect();
-        if (!voice.sources.length) {
-          voice.nodes.forEach((n) => n.disconnect());
-          this.active.delete(e.id);
-          this.budget.remove(e.id);
-        }
-      };
-      source.start(at + offset);
-      source.stop(at + offset + duration + 0.003);
-    };
-    // Dry relay contact, low-mid body and a short, subdued metal edge.
-    // Each event is synthesized here; no audition recording is loaded.
-    burst(0, 0.0028, 0.2, 3200, 0.65, 950);
-    burst(0.0008, 0.034, 0.69, 235, 0.95);
-    burst(0.0012, 0.027, 0.32, 465, 0.9);
-    burst(0.0017, 0.019, 0.09, 780, 1);
-    burst(0.0048, 0.0065, 0.065, 1700, 0.7, 650);
-    burst(0.002, 0.026, 0.062, 1380, 3.2);
-    burst(0.003, 0.032, 0.025, 2190, 4.5);
-    if (e.kind !== "arrival") {
-      const source = c.createBufferSource();
-      const buffer = c.createBuffer(
-        1,
-        Math.ceil(c.sampleRate * 0.039),
-        c.sampleRate,
-      );
-      const samples = buffer.getChannelData(0);
-      const metals = [
-        [1567, dark ? 0.0015 : 0.0032],
-        [2471, dark ? 0.0007 : 0.0014],
-      ];
-      for (let i = 0; i < samples.length; i++) {
-        const t = i / c.sampleRate;
-        samples[i] = metals.reduce(
-          (sum, [hz, level]) =>
-            sum +
-            Math.sin(2 * Math.PI * hz * shade * t) *
-              level *
-              Math.min(1, t / 0.0009) *
-              Math.exp(-180 * t) *
-              Math.max(0, Math.min(1, (0.038 - t) / 0.005)),
-          0,
-        );
+    const voice: Voice = { source, nodes: [source, bus, filter, pan] };
+    this.active.set(e.id, voice);
+    source.buffer = this.sample;
+    // A fixed, tiny register difference; no pitch sweep or second note.
+    source.playbackRate.value = subjectRegister(e.subject);
+    filter.type = "lowpass";
+    filter.Q.value = 0.5;
+    filter.frequency.value =
+      tone.cutoff * Math.max(0.9, Math.min(1.1, e.brightness ?? 1));
+    pan.pan.value = Math.max(-1, Math.min(1, e.pan ?? 0));
+    const level = Math.max(0, Math.min(1, e.level ?? 0.8)) * tone.level;
+    bus.gain.value = 0;
+    bus.gain.setValueAtTime(level, at);
+    bus.gain.setValueAtTime(level, at + life - 0.045);
+    bus.gain.linearRampToValueAtTime(0, at + life);
+    source.connect(filter).connect(bus).connect(pan).connect(this.compressor);
+    source.onended = () => {
+      voice.nodes.forEach((n) => n.disconnect());
+      if (this.active.get(e.id) === voice) {
+        this.active.delete(e.id);
+        this.budget.remove(e.id);
       }
-      source.buffer = buffer;
-      voice.sources.push(source);
-      voice.nodes.push(source);
-      source.connect(bus);
-      source.onended = () => {
-        voice.sources = voice.sources.filter((s) => s !== source);
-        source.disconnect();
-        if (!voice.sources.length) {
-          voice.nodes.forEach((n) => n.disconnect());
-          this.active.delete(e.id);
-          this.budget.remove(e.id);
-        }
-      };
-      source.start(at);
-      source.stop(at + 0.039);
-    }
+    };
+    source.start(at);
+    source.stop(at + life);
     return true;
   }
 }

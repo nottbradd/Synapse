@@ -1,4 +1,4 @@
-import { TactileSynth, AUDIO, type Cue } from "./audio";
+import { NoteSynth, AUDIO, type Cue } from "./audio";
 import { preferences } from "./preferences";
 import type { SignalPacket } from "./signals";
 export type ActionIntent =
@@ -34,7 +34,7 @@ export class Feedback {
   private serial = 0;
   private listeners = new Set<(event: FeedbackEvent) => void>();
   private context: AudioContext | null = null;
-  private synth: TactileSynth | null = null;
+  private synth: NoteSynth | null = null;
   private focused = true;
   private nativeFocused = true;
   private documentFocused = true;
@@ -54,7 +54,7 @@ export class Feedback {
     try {
       if (!this.context) {
         this.context = new AudioContext({ latencyHint: "interactive" });
-        this.synth = new TactileSynth(this.context, preferences.get().volume);
+        this.synth = new NoteSynth(this.context, preferences.get().volume);
       }
       if (this.context.state === "suspended") await this.context.resume();
     } catch {
@@ -118,26 +118,8 @@ export class Feedback {
             ? 0.65
             : 0.8,
     );
-    const offsets =
-      kind === "remembered"
-        ? [0.074]
-        : kind === "focus" || kind === "leave"
-          ? [0.062]
-          : kind === "import"
-            ? [0.085, 0.17]
-            : kind === "complete" || kind === "draft"
-              ? [0.085, 0.17]
-              : [];
-    offsets.forEach((s, i) =>
-      this.contact(
-        `${event.id}-${i}`,
-        i === 1 ? "close" : "arrival",
-        event.at + s * 1000,
-        subject,
-        kind === "complete" ? 0.48 : 0.42,
-        kind === "leave" ? 1 - i * 0.06 : 1 + i * 0.035,
-      ),
-    );
+    // Each action has one opening note. Neighbour cues still follow their
+    // visual arrival timestamps; no decorative second note or mini-chime.
     return event;
   }
   arrivals(packets: SignalPacket[], relay = false) {

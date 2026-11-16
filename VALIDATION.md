@@ -1,5 +1,7 @@
 # Synapse validation
 
+Private owner activation and billing records for the historical 0.5.1 build were removed before public release. Its notification-derived recording is not redistributed. See the current release validation for the replacement original audio and verified public installer.
+
 ## 0.5.0 owner-funded AI — 16 November 2026
 
 Implemented a separate Synapse Worker/D1 gateway, protected Wrangler owner CLI and explicit desktop provider selection. Calendar's supplied AI architecture was read only; no Calendar files, database, secret or deployment were changed. The checked-in Synapse database ID is still a placeholder, and the installed desktop has no live gateway origin. No live Cloudflare deployment, owner service credential, OpenAI inference, provider billing or credit application is claimed.

@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "synapse-ai",
+  "account_id": "41b3224f11d1b00522d5e9f05bfe2508",
   "main": "worker.mjs",
   "compatibility_date": "2026-11-01",
   "workers_dev": true,
@@ -8,8 +9,8 @@
   "d1_databases": [{
     "binding": "AI_DB",
     "database_name": "synapse-ai",
-    // Replace only with a newly created Synapse database. Never use Calendar's ID.
-    "database_id": "00000000-0000-0000-0000-000000000000",
+    // Dedicated Synapse database, verified against the owner's remote inventory.
+    "database_id": "d36cecfa-27a7-4236-918a-aa96708e7b2e",
     "migrations_dir": "migrations"
   }]
 }

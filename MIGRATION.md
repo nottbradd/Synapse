@@ -1,5 +1,11 @@
 # Organization and portable subjects
 
+## Hosted origin and opening-note sound (0.5.1)
+
+No vault, study, review, subject-package or device schema changes are required. The approved Clean note is bundled in the frontend and replaces the previous synthesized relay material. Existing Sound, Volume and Animations values are read unchanged; this upgrade does not reset them. Existing installations retain their provider and personal credential entry.
+
+The distributed build now contains the public Synapse gateway origin. This does not enroll a device, grant consent or change its selected provider. The gateway remains paused pending verified funding deadlines. Its D1 ledger is retained across configuration changes; a later monthly grant is an explicit funding update, never a reset of cumulative spending or participant quotas.
+
 ## Upgrade from v0.1
 
 Opening a vault creates `.synapse/organization.json` schema 1. Neurons and subjects have independent UUIDs. Existing notes are indexed first, then assigned to the default Neuron using recognized frontmatter, preset folders, custom top-level folders and General. Their original paths and bytes stay unchanged. Frozen legacy note membership and original folder associations keep custom subjects stable after display renames. New managed subject roots have priority over preset inference.

@@ -7,6 +7,9 @@ permissions:
 jobs:
   verify:
     runs-on: windows-latest
+    env:
+      # Public origin only; owner credentials stay exclusively in Worker secrets.
+      SYNAPSE_AI_URL: https://synapse-ai.nottbradd.workers.dev
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

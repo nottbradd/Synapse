@@ -1,8 +1,6 @@
-# Synapse AI owner service
+# Owner-managed AI service
 
-Synapse has a separate Cloudflare Worker and D1 database. Calendar's AI README and Worker were inspected as a **read-only architectural reference**; its files, database, secret, deployment and policy are unchanged. The new Worker has one `AI_DB` binding to a new database named `synapse-ai`. The owner's dedicated Synapse OpenAI service-account credential belongs only in the Worker secret `OPENAI_SERVICE_KEY`.
-
-**Deployment state:** the checked-in database UUID is an unusable placeholder. A fresh migration is paused, enrollment is closed, funding is unconfigured and all three spending ceilings are zero. Local verification does not establish live deployment or provider access. See [executed validation](../../VALIDATION.md).
+Private owner billing and activation records were removed before public release. The historical contract and setup guide below describe this revision; see the latest release for current service availability. No service credentials are distributed.
 
 ## Contract and limits
 
@@ -80,24 +78,26 @@ Endpoint overrides require **both** debug mode and `test-api`; only loopback HTT
 ## Prepare a separate live deployment
 
 1. Create a **dedicated OpenAI project and service account for Synapse**. Review data settings, available funding, exact grant expiry, service/key expiry and actual provider spend controls. Restrict the key to Responses creation and the pinned model where supported. Never put it in chat, source, desktop settings, command arguments or packages. Calendar's project/key/database must remain separate.
-2. From `backend/ai`, authenticate as the owner, create a new D1 database and put its UUID into this `wrangler.jsonc`. The zero UUID intentionally blocks the deployment script.
+2. For a new deployment, authenticate as the owner and create a dedicated D1 database, then put its verified UUID into `wrangler.jsonc`. The current Synapse database above already exists: do not recreate it or reapply the bootstrap as a spending reset. The CLI rejects placeholder or mismatched database IDs.
 
 ```powershell
 cd backend/ai
 npm ci
-npx wrangler login
+npx wrangler login --scopes account:read user:read workers:write workers_scripts:write d1:write
 npx wrangler whoami
 npx wrangler d1 create synapse-ai
 # Edit this directory's wrangler.jsonc with the new Synapse database UUID.
 node owner.mjs check-target --target remote
 npx wrangler d1 migrations apply AI_DB --remote --config wrangler.jsonc
-npm run deploy
-# Enter the dedicated key at this private interactive prompt:
-npx wrangler secret put OPENAI_SERVICE_KEY --config wrangler.jsonc
+node node_modules/wrangler/bin/wrangler.js deploy --config wrangler.jsonc
+# In a separate private PowerShell 7 window, paste the key at the hidden prompt:
+pwsh -NoProfile -File ./set-service-key.ps1
 node owner.mjs usage --target remote
 ```
 
-3. Check the deployed `/health` URL: service must be `synapse-ai`, paused must be true. Copy `owner-config.example.json` to ignored `owner-config.json`. Its deadlines are intentionally invalid until supplied by the owner. Choose all three ceilings explicitly; example dollar amounts are suggestions, not active defaults. Use `funding:"credit"` only with a verified `credit_expires`. Use `"paid"` only for previously authorized funding, with `credit_expires:null`. Always set a finite `service_expires`, and set `credential_expires` when applicable. Dates are exact UTC instants, `YYYY-MM-DDTHH:mm:ssZ`. No grace period or assumed renewal applies. Configure while paused:
+The private helper verifies the remote database identity before accepting a SecureString, sends the key only through Wrangler's redirected stdin, suppresses child output and clears its transient character buffer. It writes no key file, argument or environment variable. Do not capture the reveal dialog, terminal input or clipboard. After entry, navigate away from the provider reveal page before any automation observation. Verify only `wrangler secret list`, masked provider metadata and deployment IDs. On this workstation, invoke Wrangler directly from `backend/ai`; `npm --prefix` can prevent discovery of the installed encrypted-auth keyring.
+
+3. Check the deployed `/health` URL: service must be `synapse-ai`, paused must be true. For a new installation, copy `owner-config.example.json` to ignored `owner-config.json`; do not overwrite the prepared rollout file. Its deadlines are intentionally invalid until verified. Choose all three ceilings explicitly; example dollar amounts are suggestions, not active defaults. Use `funding:"credit"` only with a verified `credit_expires`. Use `"paid"` only for previously authorized funding, with `credit_expires:null`. Always set a finite `service_expires`, and set `credential_expires` when applicable. Dates are exact UTC instants, `YYYY-MM-DDTHH:mm:ssZ`. No grace period or assumed renewal applies. Configure while paused:
 
 ```powershell
 node owner.mjs configure --target remote --file owner-config.json
@@ -108,7 +108,7 @@ node owner.mjs usage --target remote
 
 ```powershell
 cd ../..
-$env:SYNAPSE_AI_URL = 'https://YOUR-SYNAPSE-WORKER-ORIGIN'
+$env:SYNAPSE_AI_URL = 'https://synapse-ai.nottbradd.workers.dev'
 npm run tauri build
 Remove-Item Env:SYNAPSE_AI_URL
 ```
@@ -159,6 +159,6 @@ node owner.mjs usage --target remote
 node owner.mjs ack-overrun --target remote --provider-record-reviewed
 ```
 
-**Credential rotation:** pause; create a replacement in the Synapse OpenAI project; use the private `wrangler secret put OPENAI_SERVICE_KEY` prompt; revoke the old key at OpenAI; update its expiry with `configure`; verify funding/access; explicitly resume. A later key expiry never extends an earlier credit deadline. Extending service requires explicitly verified replacement funding and changed dates. Cumulative accounting is never reset.
+**Credential rotation:** pause; create a replacement in the Synapse OpenAI project; use the private `set-service-key.ps1` helper; revoke the old key at OpenAI; update its expiry with `configure`; verify funding/access; explicitly resume. A later key expiry never extends an earlier credit deadline. Extending service requires explicitly verified replacement funding and changed dates. Cumulative accounting is never reset.
 
 Back up D1 before migrations. Do not delete the ledger to unblock spending. Minimal idempotency/accounting records are retained indefinitely in this initial version; any future pruning needs a reviewed archive strategy that preserves duplicate prevention and cumulative totals.

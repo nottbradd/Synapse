@@ -8,7 +8,7 @@ export default ts.config(
       "dist",
       "node_modules",
       ".tools",
-      ".local",
+      "**/.local/**",
       "src-tauri/target",
       "src-tauri/gen",
       "**/.wrangler/**",

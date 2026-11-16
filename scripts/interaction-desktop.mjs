@@ -180,11 +180,11 @@ expect(forced.outward).toBe(Math.PI);
 expect(forced.inward).toBe(0);
 expect(forced.cameraUnchanged).toBe(true);
 const audio = await page.evaluate(async () => {
-  const { TactileSynth } = await import("/src/interaction/audio.ts");
+  const { NoteSynth } = await import("/src/interaction/audio.ts");
   const cases = [];
   for (const name of ["default", "dense", "cancelled", "muted"]) {
     const context = new OfflineAudioContext(2, 24000, 48000),
-      synth = new TactileSynth(context, name === "dense" ? 1 : 0.35);
+      synth = new NoteSynth(context, name === "dense" ? 1 : 0.35);
     const count = name === "dense" ? 30 : 1;
     let accepted = 0;
     for (let i = 0; i < count; i++)

@@ -9,7 +9,7 @@ const spy = vi.hoisted(() => ({
 }));
 vi.mock("./audio", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./audio")>()),
-  TactileSynth: class {
+  NoteSynth: class {
     play = spy.play;
     cancel = spy.cancel;
     mute = spy.mute;
@@ -109,4 +109,30 @@ it("maps a frozen arrival to the audio clock and drops stale arrivals", async ()
   f.arrivals([{ ...p, id: "old", arrival: 800 }]);
   expect(spy.play).toHaveBeenCalledTimes(1);
   vi.restoreAllMocks();
+});
+it.each([
+  "remembered",
+  "focus",
+  "leave",
+  "import",
+  "complete",
+  "draft",
+] as const)(
+  "%s plays one opening note without a decorative second note",
+  async (kind) => {
+    const f = new Feedback();
+    await f.unlock();
+    f.action(kind === "import" ? { kind, nodes: [], subject: "s" } : { kind });
+    expect(spy.play).toHaveBeenCalledTimes(1);
+    expect(spy.play.mock.calls[0][0].kind).toBe(kind);
+  },
+);
+it("typing and hover do not emit audio actions", async () => {
+  const f = new Feedback(),
+    detach = f.attach();
+  await f.unlock();
+  window.dispatchEvent(new Event("keydown"));
+  window.dispatchEvent(new Event("pointermove"));
+  expect(spy.play).not.toHaveBeenCalled();
+  detach();
 });
