@@ -6,7 +6,8 @@ import {
   type RefObject,
 } from "react";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
-import { Focus, Minus, Plus, RotateCcw } from "lucide-react";
+import { ArrowLeft, Focus, Minus, Plus, RotateCcw } from "lucide-react";
+import type { Exploration } from "../interaction/exploration";
 import type { Snapshot } from "../types";
 import { GraphScene } from "../interaction/graphScene";
 import { nodeScreenRadius, type SceneNode } from "../interaction/topology";
@@ -14,6 +15,8 @@ import { useReducedMotion } from "../hooks/useReducedMotion";
 import TransitionTitle from "./TransitionTitle";
 export default function Graph({
   snapshot,
+  exploration,
+  onNavigate,
   selected,
   query,
   left,
@@ -24,6 +27,8 @@ export default function Graph({
   onNewNote,
 }: {
   snapshot: Snapshot;
+  exploration: Exploration;
+  onNavigate: (action: "back" | "overview" | { subject: string }) => void;
   selected?: string;
   query: string;
   left: number;
@@ -42,14 +47,31 @@ export default function Graph({
   const sceneRef = useRef<GraphScene | null>(null);
   if (!sceneRef.current) sceneRef.current = new GraphScene();
   const scene = sceneRef.current;
+  scene.exploration = exploration;
   const [size, setSize] = useState({
       width: window.innerWidth,
       height: window.innerHeight,
     }),
     reduced = useReducedMotion();
-  const data = scene.topology.update(snapshot),
+  const data = scene.topology.update(
+      snapshot,
+      exploration.scope,
+      exploration.revision,
+      exploration.restore,
+    ),
     topology = scene.topology.key;
   const [dragLayout, setDragLayout] = useState("");
+  const openAt = (event: MouseEvent) => {
+    const bounds = container.current?.getBoundingClientRect();
+    if (!bounds) return;
+    const node = scene.hitTest(
+      event.clientX - bounds.left,
+      event.clientY - bounds.top,
+    );
+    if (!node) return;
+    if (node.role === "subnetwork") onNavigate({ subject: node.subject_id });
+    else onOpen(node.id);
+  };
   useEffect(() => scene.attach(), [scene]);
   useEffect(() => {
     let frame = 0;
@@ -102,16 +124,21 @@ export default function Graph({
     scene,
     drawer,
     auxiliaryOpen,
+    exploration,
+    exploration.revision,
   ]);
   useEffect(() => scene.installForces(), [scene, topology]);
-  const location = snapshot.organization.location,
-    title = location.subject_id
-      ? snapshot.organization.subjects.find((s) => s.id === location.subject_id)
-          ?.name
-      : location.neuron_id
-        ? snapshot.organization.neurons.find((n) => n.id === location.neuron_id)
-            ?.name
-        : "All Neurons";
+  const scope = exploration.scope,
+    title =
+      scope.kind === "topic"
+        ? snapshot.notes.find((n) => n.id === scope.note)?.title
+        : scope.kind === "subnetwork"
+          ? snapshot.organization.subjects.find((s) => s.id === scope.subject)
+              ?.name
+          : scope.neuron
+            ? snapshot.organization.neurons.find((n) => n.id === scope.neuron)
+                ?.name
+            : "All Neurons";
   return (
     <div
       className="graph"
@@ -131,14 +158,15 @@ export default function Graph({
         nodeId="id"
         nodeLabel=""
         autoPauseRedraw={false}
-        onNodeClick={(n) => {
-          if (scene.isInteractive(n)) onOpen(n.id);
-        }}
+        onNodeClick={(_node, event) => openAt(event)}
+        onBackgroundClick={openAt}
+        onLinkClick={(_link, event) => openAt(event)}
         onNodeHover={(n) =>
           scene.setHover(n && scene.isInteractive(n) ? n.id : undefined)
         }
         onZoom={() => scene.manual()}
-        onNodeDrag={() => {
+        onNodeDrag={(n) => {
+          scene.topology.reveal.pin(n);
           if (dragLayout !== topology) setDragLayout(topology);
           scene.engine = true;
           scene.wake();
@@ -146,11 +174,16 @@ export default function Graph({
         onNodeDragEnd={(n) => {
           n.fx = n.x;
           n.fy = n.y;
+          scene.topology.reveal.pin(n);
           scene.wake();
         }}
         onEngineStop={() => scene.engineStopped()}
         cooldownTicks={
-          scene.topology.layoutChanged || dragLayout === topology ? 90 : 0
+          scene.topology.nested
+            ? 0
+            : scene.topology.layoutChanged || dragLayout === topology
+              ? 90
+              : 0
         }
         warmupTicks={scene.topology.layoutChanged ? 80 : 0}
         d3AlphaDecay={0.055}
@@ -180,14 +213,36 @@ export default function Graph({
         ref={heading}
         style={{ left: left + 28 }}
       >
+        {exploration.history.length > 0 && (
+          <button
+            className="graph-back"
+            aria-label="Back to previous network"
+            onClick={() => onNavigate("back")}
+          >
+            <ArrowLeft size={17} /> Back
+          </button>
+        )}
         <h1 title={title}>
           <TransitionTitle text={title ?? "All Neurons"} />
         </h1>
         <span>
-          {data.nodes.length} {data.nodes.length === 1 ? "note" : "notes"}
+          {scope.kind === "overview"
+            ? `${scene.topology.visibleNodes.length} subnetworks`
+            : scope.kind === "topic"
+              ? `${Math.max(0, scene.topology.visibleNodes.length - 1)} linked concepts`
+              : `${scene.topology.visibleNodes.length} topics`}
         </span>
       </header>
-      {!data.nodes.length && (
+      {scope.kind === "topic" && scene.topology.visibleNodes.length === 1 && (
+        <div
+          className="network-empty"
+          style={{ left: left + 28, right: selected ? editorWidth + 60 : 28 }}
+        >
+          No linked concepts yet. Add a WikiLink in this note to connect
+          existing knowledge.
+        </div>
+      )}
+      {!scene.topology.visibleNodes.length && (
         <div
           className="graph-empty"
           style={{ left: left + 24, right: selected ? editorWidth + 56 : 24 }}
@@ -200,6 +255,24 @@ export default function Graph({
         </div>
       )}
       <div className="graph-controls glass" ref={controls}>
+        <details className="network-browser">
+          <summary aria-label="Browse current network">Browse</summary>
+          <div>
+            {scene.topology.visibleNodes.map((n) => (
+              <button
+                key={n.id}
+                onClick={(e) => {
+                  e.currentTarget.closest("details")?.removeAttribute("open");
+                  if (n.role === "subnetwork")
+                    onNavigate({ subject: n.subject_id });
+                  else onOpen(n.id);
+                }}
+              >
+                {n.title}
+              </button>
+            ))}
+          </div>
+        </details>
         <button
           title="Zoom out"
           aria-label="Zoom out"
@@ -223,9 +296,9 @@ export default function Graph({
           <Focus size={17} />
         </button>
         <button
-          title="Reset graph view"
-          aria-label="Reset graph view"
-          onClick={() => scene.fit(false)}
+          title="Return to overview"
+          aria-label="Return to overview"
+          onClick={() => onNavigate("overview")}
         >
           <RotateCcw size={16} />
         </button>

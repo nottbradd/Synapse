@@ -1,4 +1,8 @@
-# Organization and portable subjects
+# Synapse compatibility and migration
+
+## 0.6.0 nested exploration and public licensing
+
+No vault, study, review, package or device schema changes. Graph focus and its bounded Back stack are presentation state; entering linked notes never changes membership, file paths or review queues. Restart begins at the saved sidebar location. Sound, Volume, animation preference, selected AI provider and protected credentials are read unchanged. Original oscillator synthesis replaces the private notification-derived sample. Source and original assets are now GPL-3.0-only; third-party notices remain separate. Hosted invitation/authentication, quotas, spending ledgers and the existing service cutoff are unchanged.
 
 ## Hosted origin and opening-note sound (0.5.1)
 
@@ -57,6 +61,7 @@ Quizzes and generated-card provenance belong to their destination subject; remin
 Imported quizzes, attempts, reminders and card batches receive new stable UUIDs; question IDs remain associated with their copied quiz. Quiz attempts transfer only when history is explicitly included on export and import. Reminder definitions transfer **paused**, without next/pending/delivered times; edit and save a future time to enable one on the receiving device. Device registrations, API credentials, model preferences, usage counters, delivery receipts and background/startup settings never enter a portable package.
 
 The publication journal includes optional before/after study metadata alongside organization and history. Recovery accepts old journals without those fields. Each metadata replacement is revision checked and idempotent; external modifications pause recovery rather than being overwritten. Generated flashcard Markdown uses a draft-ID/content-digest marker so retrying a write that succeeded before metadata publication does not append twice. Changing that partially written draft requires resolving the existing destination, rather than silently rewriting it.
+
 ## Synapse AI provider migration (0.5.0)
 
 The device configuration remains schema version 1, with additive `provider` and `hosted_consent` fields. Deserializing an existing config without these fields selects **Personal API key** and leaves consent false; all model, output, timezone, background, reminder-vault and usage values remain intact. A fresh profile defaults to **Synapse AI**, except when an existing saved personal credential predates its config. No stored credential is deleted or transferred by migration.

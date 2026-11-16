@@ -1,7 +1,7 @@
 {
   "name": "synapse-ai",
   "private": true,
-  "version": "0.5.1",
+  "version": "0.6.0",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -16,5 +16,6 @@
   "devDependencies": {
     "wrangler": "4.156.1",
     "miniflare": "5.20261101.0-beta"
-  }
+  },
+  "license": "GPL-3.0-only"
 }

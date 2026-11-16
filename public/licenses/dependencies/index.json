@@ -1,0 +1,72 @@
+{
+  "npm:bezier-js@6.1.4": [
+    {
+      "file": "npm-bezier-js-6.1.4-license.txt",
+      "source": "https://github.com/Pomax/bezierjs/blob/a41f3e08e9724c9973eca0eb5c1304120e72fc70/src/bezier.js",
+      "licenseSource": "https://raw.githubusercontent.com/spdx/license-list-data/main/text/MIT.txt"
+    }
+  ],
+  "npm:react-force-graph-2d@1.29.2": [
+    {
+      "file": "npm-react-force-graph-2d-1.29.2-LICENSE",
+      "source": "https://raw.githubusercontent.com/vasturiano/react-force-graph/d59a72d24d310567a05d1622fd1f9f2fd13bc8fd/LICENSE"
+    }
+  ],
+  "npm:rehype-katex@7.0.1": [
+    {
+      "file": "npm-rehype-katex-7.0.1-license",
+      "source": "https://raw.githubusercontent.com/remarkjs/remark-math/88a9497e1ede93b958237c85edbf5651faeca7af/license"
+    }
+  ],
+  "npm:remark-math@6.0.0": [
+    {
+      "file": "npm-remark-math-6.0.0-license",
+      "source": "https://raw.githubusercontent.com/remarkjs/remark-math/d5d0660b150810a535bbb07eac6cc96a4510aa24/license"
+    }
+  ],
+  "cargo:alloc-stdlib@0.3.0": [
+    {
+      "file": "cargo-alloc-stdlib-0.3.0-LICENSE",
+      "source": "https://raw.githubusercontent.com/dropbox/rust-alloc-no-stdlib/0a81fd6928ea3b33c8cd484aa4575d50ffb98012/LICENSE"
+    }
+  ],
+  "cargo:selectors@0.38.0": [
+    {
+      "file": "cargo-selectors-0.38.0-license.txt",
+      "source": "https://github.com/servo/stylo/blob/572ecba2d1600e7c3d490586692a209faf703baa/selectors/lib.rs",
+      "licenseSource": "https://raw.githubusercontent.com/spdx/license-list-data/main/text/MPL-2.0.txt"
+    }
+  ],
+  "cargo:tauri-plugin@2.7.2": [
+    {
+      "file": "cargo-tauri-plugin-2.7.2-LICENSE-APACHE-2.0",
+      "source": "https://raw.githubusercontent.com/tauri-apps/tauri/59b63ab500da9859f12d8888c3298bc29bba0b92/LICENSE-APACHE-2.0"
+    },
+    {
+      "file": "cargo-tauri-plugin-2.7.2-LICENSE-MIT",
+      "source": "https://raw.githubusercontent.com/tauri-apps/tauri/59b63ab500da9859f12d8888c3298bc29bba0b92/LICENSE-MIT"
+    },
+    {
+      "file": "cargo-tauri-plugin-2.7.2-LICENSE.spdx",
+      "source": "https://raw.githubusercontent.com/tauri-apps/tauri/59b63ab500da9859f12d8888c3298bc29bba0b92/LICENSE.spdx"
+    }
+  ],
+  "cargo:webview2-com@0.39.1": [
+    {
+      "file": "cargo-webview2-com-0.39.1-LICENSE",
+      "source": "https://raw.githubusercontent.com/wravery/webview2-rs/edc2caf886175ccaebe86078c9cfe1ae2a187328/LICENSE"
+    }
+  ],
+  "cargo:webview2-com-macros@0.8.1": [
+    {
+      "file": "cargo-webview2-com-macros-0.8.1-LICENSE",
+      "source": "https://raw.githubusercontent.com/wravery/webview2-rs/dffa41a8a46d3f5565eefbff2de57d38d399f158/LICENSE"
+    }
+  ],
+  "cargo:webview2-com-sys@0.39.1": [
+    {
+      "file": "cargo-webview2-com-sys-0.39.1-LICENSE",
+      "source": "https://raw.githubusercontent.com/wravery/webview2-rs/edc2caf886175ccaebe86078c9cfe1ae2a187328/LICENSE"
+    }
+  ]
+}

@@ -2,16 +2,10 @@
 // These numerical renders are separate from the installed-app audition.
 import { chromium } from "@playwright/test";
 import { createServer } from "vite";
-import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import assert from "node:assert/strict";
-const out = ".local/sound-0.5.1";
+const out = ".local/sound-0.6.0";
 await mkdir(out, { recursive: true });
-const asset = await readFile("src/interaction/assets/note-clean.wav");
-assert.equal(
-  createHash("sha256").update(asset).digest("hex"),
-  "e03ef4fc17ef8ab26d18932d39d3a27b854e56014996becfd9029f0ab2d42019",
-);
 const server = await createServer({
   server: { host: "127.0.0.1", port: 1430 },
 });
@@ -28,96 +22,92 @@ try {
   await page.goto("http://127.0.0.1:1430/audio-check");
   const report = await page.evaluate(async () => {
     const { NoteSynth } = await import("/src/interaction/audio.ts");
-    const { noteBuffer } = await import("/src/interaction/note.ts");
-    const sample = noteBuffer(new OfflineAudioContext(2, 24000, 48000));
+    const { nodeVoice } = await import("/src/interaction/note.ts");
     const peakOf = (samples) =>
       samples.reduce((peak, x) => Math.max(peak, Math.abs(x)), 0);
     const cases = [];
     for (const volume of [0.69, 1]) {
-      for (const name of [
-        "single",
-        "neighbours",
-        "dense",
-        "cancelled",
-        "muted",
-        "zero",
-        "stale",
-        "disposed",
-        "gated",
-      ]) {
-        const context = new OfflineAudioContext(2, 38400, 48000);
-        const synth = new NoteSynth(context, name === "zero" ? 0 : volume);
-        const contact = {
-          id: "v0",
-          at: 0.02,
-          kind: "select",
-          level: 0.8,
-          subject: "s0",
-        };
-        let accepted = 0;
-        const count = ["dense", "neighbours"].includes(name)
-          ? 30
-          : name === "gated"
-            ? 2
-            : 1;
-        if (name === "disposed") synth.dispose();
-        for (let i = 0; i < count; i++) {
-          if (
-            synth.play({
-              ...contact,
-              id: `v${i}`,
-              at:
-                name === "stale"
-                  ? -1
-                  : name === "gated"
-                    ? 0.02 + i * 0.01
-                    : 0.02,
-              subject: name === "gated" ? "same" : `s${i}`,
-              kind: name === "neighbours" ? "arrival" : "select",
-              level: name === "neighbours" ? 0.22 : 1,
-            })
-          )
-            accepted++;
+      for (const role of ["subnetwork", "topic", "concept"]) {
+        for (const name of [
+          "single",
+          "neighbours",
+          "dense",
+          "cancelled",
+          "muted",
+          "zero",
+          "stale",
+          "disposed",
+          "gated",
+        ]) {
+          const context = new OfflineAudioContext(2, 38400, 48000);
+          const synth = new NoteSynth(context, name === "zero" ? 0 : volume);
+          const contact = {
+            id: "v0",
+            at: 0.02,
+            kind: "select",
+            level: 0.8,
+            subject: "s0",
+            role,
+          };
+          let accepted = 0;
+          const count = ["dense", "neighbours"].includes(name)
+            ? 30
+            : name === "gated"
+              ? 2
+              : 1;
+          if (name === "disposed") synth.dispose();
+          for (let i = 0; i < count; i++) {
+            if (
+              synth.play({
+                ...contact,
+                id: `v${i}`,
+                at:
+                  name === "stale"
+                    ? -1
+                    : name === "gated"
+                      ? 0.02 + i * 0.01
+                      : 0.02,
+                subject: name === "gated" ? "same" : `s${i}`,
+                kind: name === "neighbours" ? "arrival" : "select",
+                level: name === "neighbours" ? 0.22 : 1,
+              })
+            )
+              accepted++;
+          }
+          if (name === "cancelled") synth.cancel();
+          if (name === "muted") synth.mute(true, volume);
+          const maximumVoices = synth.activeVoices;
+          const buffer = await context.startRendering();
+          const channels = [buffer.getChannelData(0), buffer.getChannelData(1)];
+          const peak = Math.max(...channels.map(peakOf));
+          const rms = Math.sqrt(
+            channels[0].reduce((sum, x) => sum + x * x, 0) / buffer.length,
+          );
+          const result = {
+            name,
+            role,
+            volume,
+            peak,
+            rms,
+            accepted,
+            maximumVoices,
+            remaining: synth.activeVoices,
+            reservations: synth.budget.voices.size,
+            finite: channels.every((a) => a.every(Number.isFinite)),
+            tail: Math.max(...channels.map((a) => peakOf(a.slice(-4800)))),
+          };
+          synth.dispose();
+          cases.push(result);
         }
-        if (name === "cancelled") synth.cancel();
-        if (name === "muted") synth.mute(true, volume);
-        const maximumVoices = synth.activeVoices;
-        const buffer = await context.startRendering();
-        const channels = [buffer.getChannelData(0), buffer.getChannelData(1)];
-        const peak = Math.max(...channels.map(peakOf));
-        const rms = Math.sqrt(
-          channels[0].reduce((sum, x) => sum + x * x, 0) / buffer.length,
-        );
-        const result = {
-          name,
-          volume,
-          peak,
-          rms,
-          accepted,
-          maximumVoices,
-          remaining: synth.activeVoices,
-          reservations: synth.budget.voices.size,
-          finite: channels.every((a) => a.every(Number.isFinite)),
-          tail: Math.max(...channels.map((a) => peakOf(a.slice(-4800)))),
-        };
-        synth.dispose();
-        cases.push(result);
       }
     }
     return {
-      sample: {
-        duration: sample.duration,
-        channels: sample.numberOfChannels,
-        sampleRate: sample.sampleRate,
-        peak: peakOf(sample.getChannelData(0)),
-      },
+      palette: ["subnetwork", "topic", "concept"].map((role) =>
+        nodeVoice({ role }),
+      ),
       cases,
     };
   });
-  assert.equal(report.sample.duration, 0.245);
-  assert.equal(report.sample.channels, 2);
-  assert.equal(report.sample.sampleRate, 48000);
-  assert.ok(report.sample.peak > 0.09 && report.sample.peak <= 0.10001);
   for (const c of report.cases) {
     assert.ok(
       c.finite && c.peak < 0.241 && c.maximumVoices <= 6,
@@ -133,13 +123,16 @@ try {
     if (c.name === "single") assert.ok(c.peak > 0.01);
   }
   for (const volume of [0.69, 1]) {
-    const single = report.cases.find(
-      (c) => c.name === "single" && c.volume === volume,
-    );
-    const neighbours = report.cases.find(
-      (c) => c.name === "neighbours" && c.volume === volume,
-    );
-    assert.ok(neighbours.peak < single.peak * 0.4);
+    for (const role of ["subnetwork", "topic", "concept"]) {
+      const single = report.cases.find(
+        (c) => c.name === "single" && c.volume === volume && c.role === role,
+      );
+      const neighbours = report.cases.find(
+        (c) =>
+          c.name === "neighbours" && c.volume === volume && c.role === role,
+      );
+      assert.ok(neighbours.peak < single.peak * 0.4);
+    }
   }
   await writeFile(
     `${out}/mix-report.json`,

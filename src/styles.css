@@ -486,6 +486,7 @@ pre {
   pointer-events: none;
 }
 .graph-heading h1 {
+  min-width: 0;
   font-size: 24px;
   overflow: hidden;
   white-space: nowrap;
@@ -495,6 +496,70 @@ pre {
   color: var(--quiet);
   font-size: 13px;
   white-space: nowrap;
+}
+.graph-back {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 6px 8px;
+}
+.network-empty {
+  position: absolute;
+  top: 95px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+  pointer-events: none;
+}
+.network-browser {
+  position: relative;
+}
+.network-browser summary {
+  cursor: pointer;
+  padding: 8px;
+  font-size: 12px;
+  list-style: none;
+}
+.network-browser > div {
+  position: absolute;
+  left: 0;
+  bottom: 46px;
+  width: 260px;
+  max-width: 60vw;
+  max-height: min(360px, 55vh);
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--edge);
+  background: #10181f;
+  border-radius: 3px;
+}
+.network-browser button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  white-space: normal;
+  padding: 9px 10px;
+}
+@media (max-width: 1100px) {
+  .graph-heading {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .graph-heading h1 {
+    font-size: 19px;
+  }
+  .graph-heading > span {
+    display: none;
+  }
+  .graph-controls {
+    padding: 4px;
+    gap: 0;
+  }
+  .graph-controls > button {
+    padding: 6px;
+  }
 }
 .graph-controls {
   position: absolute;
@@ -1819,7 +1884,17 @@ h3 {
   }
 }
 /* Hosted status stays within the existing study/settings rhythm. */
-.hosted-details { margin-block: 12px; }
-.hosted-details summary { cursor: pointer; color: var(--muted); }
-.hosted-details p { overflow-wrap: anywhere; }
-.hosted-allowance { margin-block: 12px; font-size: 12px; }
+.hosted-details {
+  margin-block: 12px;
+}
+.hosted-details summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.hosted-details p {
+  overflow-wrap: anywhere;
+}
+.hosted-allowance {
+  margin-block: 12px;
+  font-size: 12px;
+}

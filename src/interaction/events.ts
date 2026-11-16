@@ -1,7 +1,8 @@
 import { NoteSynth, AUDIO, type Cue } from "./audio";
 import { preferences } from "./preferences";
 import type { SignalPacket } from "./signals";
-export type ActionIntent =
+import type { SoundContext } from "./note";
+export type ActionIntent = (
   | {
       kind: "select" | "follow" | "connect";
       node: string;
@@ -22,7 +23,9 @@ export type ActionIntent =
       subject?: string;
       node?: string;
     }
-  | { kind: "import"; nodes: string[]; subject: string };
+  | { kind: "import"; nodes: string[]; subject: string }
+) &
+  SoundContext;
 export interface InteractionEvent {
   id: string;
   at: number;
@@ -32,6 +35,7 @@ type FeedbackEvent =
   { kind: "action"; event: InteractionEvent } | { kind: "cancel" };
 export class Feedback {
   private serial = 0;
+  private lastContact = new Map<string, number>();
   private listeners = new Set<(event: FeedbackEvent) => void>();
   private context: AudioContext | null = null;
   private synth: NoteSynth | null = null;
@@ -69,6 +73,7 @@ export class Feedback {
     level = 0.8,
     brightness = 1,
     pan = 0,
+    context: SoundContext = {},
   ) {
     if (
       !this.focused ||
@@ -87,6 +92,9 @@ export class Feedback {
       level,
       brightness,
       pan,
+      role: context.role,
+      depth: context.level,
+      node: context.node,
     });
   }
   action(intent: ActionIntent) {
@@ -105,6 +113,12 @@ export class Feedback {
     if (!this.focused) return event;
     const kind = intent.kind,
       subject = intent.subject;
+    const key = `${kind}:${intent.role}:${intent.node ?? subject ?? ""}`;
+    const previous = this.lastContact.get(key) ?? -Infinity;
+    this.lastContact.set(key, event.at);
+    for (const [id, at] of this.lastContact)
+      if (event.at - at > 1000) this.lastContact.delete(id);
+    if (event.at - previous < AUDIO.gate * 1000) return event;
     this.contact(
       event.id,
       kind,
@@ -117,13 +131,16 @@ export class Feedback {
           : kind === "remembered"
             ? 0.65
             : 0.8,
+      1,
+      0,
+      intent,
     );
     // Each action has one opening note. Neighbour cues still follow their
     // visual arrival timestamps; no decorative second note or mini-chime.
     return event;
   }
   arrivals(packets: SignalPacket[], relay = false) {
-    for (const p of packets.slice(0, 6)) {
+    for (const p of packets.slice(0, 3)) {
       if (relay)
         this.contact(
           `${p.id}-relay`,
@@ -134,7 +151,11 @@ export class Feedback {
           1.12,
           p.pan * 0.5,
         );
-      this.contact(p.id, "arrival", p.arrival, p.subject, p.level, 1, p.pan);
+      this.contact(p.id, "arrival", p.arrival, p.subject, p.level, 1, p.pan, {
+        node: p.target,
+        role: "concept",
+        level: 2,
+      });
     }
   }
   cancel(ids?: string[]) {

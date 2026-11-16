@@ -1,0 +1,4 @@
+# Keep upstream license text verbatim, including its original trailing spacing.
+LICENSE whitespace=-blank-at-eol,-blank-at-eof
+THIRD_PARTY_NOTICES.txt whitespace=-blank-at-eol,-blank-at-eof
+public/licenses/** whitespace=-blank-at-eol,-blank-at-eof

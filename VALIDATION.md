@@ -1,100 +1,28 @@
-# Synapse validation
+# Synapse 0.6.0 validation
 
-Private owner activation and billing records for the historical 0.5.1 build were removed before public release. Its notification-derived recording is not redistributed. See the current release validation for the replacement original audio and verified public installer.
+Validation uses temporary synthetic vaults. No new live provider generation is performed for this release. The existing hosted service and Calendar remain unchanged.
 
-## 0.5.0 owner-funded AI — 16 November 2026
+| Check                                                       | Result                                                                               |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| TypeScript typecheck                                        | Passed                                                                               |
+| Frontend tests                                              | 72 passed                                                                            |
+| Rust tests                                                  | 46 passed; one explicit live-provider test ignored                                   |
+| Rust formatting and Clippy, all targets, warnings denied    | Passed                                                                               |
+| Hosted gateway                                              | 22 local D1 tests passed with a mocked OpenAI provider                               |
+| Production audio                                            | 54 OfflineAudioContext cases passed across three registers at 69% and maximum volume |
+| Development desktop                                         | Real Rust/WebView checks passed; details below                                       |
+| Production build, NSIS installation and installed recording | Passed; publication awaits the history cleanup decision                              |
 
-Implemented a separate Synapse Worker/D1 gateway, protected Wrangler owner CLI and explicit desktop provider selection. Calendar's supplied AI architecture was read only; no Calendar files, database, secret or deployment were changed. The checked-in Synapse database ID is still a placeholder, and the installed desktop has no live gateway origin. No live Cloudflare deployment, owner service credential, OpenAI inference, provider billing or credit application is claimed.
+Desktop coverage includes overview/subnetwork/topic entry via the real Canvas, canonical linked notes, unchanged review scope, exact Back camera/layout/selection/drawer width/editor mode, close preserving scope, dirty-note cancel/discard, rapid retargeting, Reduced mode without packets, empty/deleted notes, 900×600 uncovered positioning, idle suspension, 90 real new backlinks and duplicate Physics subjects under distinct Neurons. No renderer errors occurred in the completed run.
 
-Completed local checks:
+Audio coverage uses the real production synthesis graph, not mocks. Cases cover every register at both volume settings: single, dense overlap, neighbours, cancelled, muted, zero volume, stale, disposed and repeated-event gating. At most six voices are admitted; all cases release reservations and nodes. Silent cases render zero, tails clear, values remain finite and peaks stay below the 0.241 bound. Subjective listening is a separate review; the prototype is never used as a soundtrack.
 
-- TypeScript typecheck, ESLint and 56 frontend tests passed.
-- Rust formatting and Clippy with warnings denied passed. Final Rust suite: **46 passed**, one explicit live-provider test ignored.
-- **22 gateway tests** passed against actual local D1 with mocked OpenAI responses. Coverage includes cross-device allowances, concurrent last-allowance and shared-budget admission, one active request per person, rolling rate limits, duplicate IDs, interrupted requests, retained reservations, missing/partial usage, atomic overrun pause, revocation/disablement, single-use/expired invitations, capacity, expiry during upload, server-clock resets, forbidden overrides, missing credentials, storage/guard failures and fresh paused defaults.
-- `scripts/hosted-ui.mjs` passed seven browser interaction checks using real React and the real local Worker/D1, with **desktop IPC and OpenAI mocked**. Consent gates activation; provider changes require explicit apply; generation yields an editable unsaved quiz; saving is explicit; a saved quiz opens without gateway access; hosted failure makes zero personal-key calls; detailed allowance and device revocation work. Evidence: ignored `.local/hosted-ui/report.json` and labelled screenshots. This browser harness is not native desktop inference evidence.
-- Production Vite/Rust/NSIS build passed. Worker production bundling passed `wrangler deploy --dry-run`; this did not deploy it.
-- Production dependency audit and complete backend dependency audit reported zero vulnerabilities.
-- The release binary contains no test endpoint override strings, mock-service credential literal or owner secret binding. Test routes require debug mode plus the explicit test feature and are excluded from release.
+Gateway tests retain invitation-only enrollment, token authentication, duplicate requests, expiry, quotas, concurrent admission, revocation, all spending caps and conservative holds. The current live policy remains 5 people, 10 generations/person/UTC day, 3/minute, one active generation/person, US$5/day, US$60/month, US$60 cumulative and the owner-approved 25 November 2026 00:00 UTC cutoff. No automatic renewal or personal-key fallback is introduced.
 
-The **0.5.0 installer completed with exit code 0**. Windows file/product version reads 0.5.0. The actual installed app was opened at `http://tauri.localhost/` through native Windows automation. It restored the existing synthetic vault and preserved **Personal API key**, **Full** animations, enabled sound and **69%** volume. Previewing Synapse AI showed its consent notice and honest service-not-configured state, with activation and switching disabled before consent; the stored provider remained personal. No personal key was read into the UI, replaced or tested, and no live hosted generation was attempted.
+Publication review currently covers all five original remote branches, no tags or releases, 13 reachable commits and all 13 Actions jobs. Gitleaks 8.30.1 reports no findings in reachable history or the tracked source snapshot. Supplementary log pattern checks report no provider/GitHub keys or bearer credentials. All 13 artifact ZIP checksums matched GitHub metadata; their 104 extracted payload files contained no owner state or credential patterns. Contextual 64-hex checks found only documented hashes/cache keys in source/logs and a uniform Rust formatting-padding constant in the binaries. The old private notification-derived WAV and historical owner billing details require explicit cleanup before visibility changes; no history rewrite has been performed.
 
-Installer: `src-tauri/target/release/bundle/nsis/Synapse_0.5.0_x64-setup.exe`. SHA-256: `7B16ED68CD6C19220706DF71B25CAED2CC31157601329DAFC3D16199BBAE81C6`. The installer remains unsigned. Owner deployment/activation and provider verification are intentionally pending the separate credential, endpoint, funding ceilings and expiry configuration documented in [backend/ai/README.md](backend/ai/README.md).
+The installed 0.6.0 executable exactly matched the payload extracted from the tested NSIS installer. GPL v3, copyright and complete third-party notice files were present in the installation directory. The installed recording covers overview entry, a subnetwork, a topic, four linked concepts and Back; all settled Back canvas images matched the originals pixel for pixel. The 23.208-second MP4 contains 1,050 frames with original compositor timing preserved within 0.989 ms, no interpolation, and actual app audio at 69%. Measured transition capture cadence was approximately 91–100 fps on this host, not a hardware-independent performance guarantee. All 12 principal audio cues align with their recorded actions within 50 ms. Native focus and a running AudioContext were verified. No provider request was made. Original settings were restored and the installed app was restarted without its debugging port.
 
-## 0.4.1 motion correction — 16 November 2026
+The unsigned installer SHA-256 is `8e0737985f772d25a308e2e9a3649077ae21598721c5aba3359fcc441682a104`. Its installed executable SHA-256 is `0de29f10c7f5d1ead5fa0ea736f6773c70f45af10fa5c4255c5ef714e8732e34`. The standalone pre-bundle executable has a different hash because Tauri patches NSIS bundle-type information into the installer payload.
 
-Windows reported `SPI_GETCLIENTAREAANIMATION=false`. After explicitly clearing Playwright's default media emulation, the installed WebView also reported `prefers-reduced-motion: reduce`. Following Windows therefore correctly skipped spatial animation, but the app provided no independent Full choice. Earlier normal-motion emulation masked this configuration.
-
-The installed-app regression also found that Graph's layout effect could retain a null drawer element on the first selection after launch/reload. The camera animated but the new drawer appeared immediately. Resolving the live drawer ref on the animation frame fixes that lifecycle case.
-
-Local validation passed:
-
-- TypeScript, ESLint and 54 frontend tests.
-- Rust formatting, Clippy with warnings denied, and 40 Rust tests; the explicit live API test remained ignored.
-- Production frontend/Rust build and NSIS packaging; installer completed with exit code 0.
-- Seven installed-app cases using `scripts/motion-desktop.mjs`: native Follow Windows, native Full, Full after reload, explicit Reduced, both live system-preference changes, and Full overriding a reduced-motion request.
-- Native Full produced 63 distinct intermediate drawer positions and 48 zoom steps; the first opening after reload produced 61 positions and 47 zoom steps. Reduced cases had no intermediate drawer positions and only their start/end zoom values.
-- Full persisted across reload. Existing Sound and Volume values were preserved, the original vault was restored, and the user's requested Full choice remained selected.
-
-The native cases run before any synthetic media changes, with no renderer replacement or API mocks. Synthetic study content stays in a temporary vault. Evidence is in ignored `.local/motion-0.4.1/report.json`, per-case frame samples, `follow-windows.png` and `full-motion.png`.
-
-The updated installer is `src-tauri/target/release/bundle/nsis/Synapse_0.4.1_x64-setup.exe`, SHA-256 `6AC6E3E73442905EA54B7CF55F05EE872237FE15032EA12A2724810256849A49`. It is unsigned. The installed executable is `%LOCALAPPDATA%/Synapse/synapse.exe`.
-
-## 0.4.0 feature validation
-
-Executed on Windows x64 on 15–16 November 2026 (Australia/Sydney). All study content used for verification was synthetic and kept in temporary vaults. Personal study notes and credentials were not used. Previous release evidence remains in Git history.
-
-## Automated checks
-
-| Check                                       | Result                                                             |
-| ------------------------------------------- | ------------------------------------------------------------------ |
-| TypeScript typecheck and ESLint             | Passed                                                             |
-| Frontend tests                              | 46 passed across 5 files                                           |
-| Rust tests, locked dependencies             | 40 passed; 1 explicit live test normally ignored                   |
-| Rust formatting and Clippy, warnings denied | Passed                                                             |
-| npm audit, all dependencies                 | 0 vulnerabilities                                                  |
-| Production Vite, Rust and NSIS build        | Passed                                                             |
-| Windows Credential Manager                  | Separate temporary credential entry roundtrip/removal passed       |
-| Explicit bounded live API check             | Executed; reported pending because no configured credential exists |
-
-New Rust coverage checks strict output shape, required nullable fields, types, item counts, source membership, option indexes, refusal/incomplete output, malformed JSON, response-size limits, HTTP quota errors, cancellation, timeout and redaction. Requests use deterministic local HTTP responses. Source preview tests verify selected bodies only and visible whole-note exclusions. Draft origins and receipts cover stale scope, cancellation and duplicate publication.
-
-Persistence tests cover deterministic offline multiple-choice scoring and short-answer self-assessment; canonical flashcards; protected source notes; external-change conflicts; interrupted-save recovery; stable source mappings; unchanged review-history bytes; corrupt metadata preservation; study-bearing package roundtrips; external references; fresh imported identities; paused imported reminders; and opt-in quiz-attempt transfer. Timezone tests cover Sydney DST gaps/folds, future-date validation, local daily/weekly recurrence, missed occurrence skipping, clock rollback and durable duplicate suppression.
-
-Existing tests retain containment/junction protection, hostile archives, journal recovery, subject identity and legacy schedule migration, canonical recall recognition, read-only scheduler previews, graph framing/retargeting/reduced motion, label placement, bounded audio reservations and cancellation.
-
-## Real desktop checks
-
-The development and installed production executables were exercised through their actual WebView2 renderer and Rust IPC. The installed URL was `http://tauri.localhost/`; no browser-only mock frontend was used. The installed executable differs from the standalone release executable only in Tauri's three-byte bundle marker (`UNK` versus `NSS`). Windows reports product version 0.4.0.
-
-- `scripts/study-desktop.mjs`: real source selection, local mock HTTP generation, quiz editing/save, offline quiz taking and deterministic scoring, short-answer self-assessment, flashcard editing/removal/canonical saving, unchanged review history, reminder interpretation/preview/save, actionable rate-limit error, cancellation and stale-scope rejection. No JavaScript errors.
-- `scripts/interaction-desktop.mjs`: exact selected-node centring (zero x/y error), reverse/retarget stability, body-only save without camera/position changes, idle renderer pause, runtime reduced motion, node-relative label side changes with a pinned camera, six-voice admission, complete cleanup, silence after cancellation/mute, and persisted sound preferences. Default rendered peak 0.01314; dense case 0.03960; no remaining voices/reservations.
-- `scripts/recall-desktop.mjs`: actual parser/scheduler, keyboard recall reveal, Markdown/WikiLink/KaTeX answers, note/revision reset rules, unchanged history for previews and actual rating persistence.
-- `scripts/transfer-desktop.mjs`: actual Rust import/export/archive/filesystem operations passed, with only native chooser responses substituted. The pre-existing native file-dialog implementation is unchanged.
-- Packaged release regression: offline reload/edit/review, dirty window-close guard, missing WikiLink creation, stable Canvas after ordinary edits, modal focus restoration, empty state, and DPR 1.5/2 backing-store checks passed with no overflow or JavaScript errors. Repeated-run fixture note/card names were made unique to avoid existing synthetic content.
-- Installed reminder test: manual preview/save; close-to-tray kept the process running; the due occurrence was claimed once; Windows `ToastNotificationManager.History` contains the real Synapse toast titled “Revise conservation of momentum”. Snooze, edit, cancellation and stable reminder identity passed.
-- Full Quit exited the process. Launching with background enabled stayed hidden; a second normal launch reopened the same instance. Three controlled overdue reminders recovered once in the catch-up view, and native toast history remained at one entry. Dismissal worked. Startup registration was enabled, read back and restored to off. Background mode was restored to off.
-
-The Windows automation helper does not expose notification banners. Native delivery is verified in Windows' own notification history, but no native-banner screenshot or footage is claimed. User visual confirmation was requested separately. Real sleep/wake and multi-monitor DPI transitions were not physically performed; timer restart, clock arithmetic and DST behaviour have deterministic coverage.
-
-## Appearance and recordings
-
-The approved angular reference and supplied sound synthesis/audition assets were inspected before implementation. The actual app now has angular junctions, tight emission, curved relationships, fewer overview labels, separated subject silhouettes and spacious matte panels. The small-window review found and corrected an over-tight fit when opening Create: it now retains the readable graph scale instead of compressing the entire graph into the uncovered strip.
-
-Matched 0.3.1 before screenshots are in `.local/cyber-before/`. Packaged after screenshots in `.local/cyber-after/` cover the 32-note multi-subject overview, note drawer, subject focus, review, 90-note dense vault, creation modes, API/reminder settings, small windows, reduced motion, opaque fallback, offline reading and reminder catch-up. `.local/cyber-study/` contains clearly labelled mocked quiz/card drafts, quiz taking/results, reminder preview and the rate-limit state. Renderer DPR 1.5 and 2 are separately checked with native-size Canvas backing stores; these are emulated renderer-density checks, not a claim of testing physical monitor changes.
-
-Actual application recordings with live app audio:
-
-- `.local/Synapse-0.4.0-study-mocked.mp4`: 30.308 s; 901 original compositor frames, 866 consecutive unique frames. Clearly labelled local-mock generation/editing, saved quiz use, card saving, reminder drafting, errors/cancellation, click-to-focus, retargeting and return. Changed transition cadence measured 79.7–92.8 fps, with median gaps about 12.1 ms and p95 up to 36.4 ms.
-- `.local/Synapse-0.4.0-installed.mp4`: 9.582 s; 457 original compositor frames, 452 consecutive unique frames. Installed-app focus, interrupted retarget, exact-return interaction and manual reminder preview/save. Changed transition cadence measured 71.9–94.0 fps, median about 12.1 ms and p95 up to 24.3 ms.
-
-Every delivered motion frame comes from the real WebView compositor. MP4 decoding preserved all source frames; maximum timestamp differences were 0.94 ms and 0.72 ms respectively. Variable frame timing is retained, with no interpolated frames. Live AudioContext output is recorded without a microphone; timestamp gaps are filled with silence during muxing, not invented cues. The study recording's captured peak was approximately -27.7 dBFS at the configured volume. A nominal 60 fps target is not presented as a constant frame rate; idle periods are intentionally still and individual frames can exceed 16.7 ms.
-
-Subjective listening quality is not asserted. The implementation ports individual dry contacts and damped resonances from the supplied reference, and its levels/lifecycle have measured validation. Native Windows toast banners are outside the WebView capture and are not fabricated in the films.
-
-## Delivery boundaries
-
-The production executable is `src-tauri/target/release/synapse.exe`; the NSIS installer is `src-tauri/target/release/bundle/nsis/Synapse_0.4.0_x64-setup.exe`. The local installation is `%LOCALAPPDATA%/Synapse/synapse.exe`. Both executable and installer are unsigned. The Vite bundle warning remains: approximately 1.55 MB JavaScript before compression, 501 KB compressed. Fonts, licenses, graph and sound code are bundled; no `.codex` runtime dependency exists.
-
-Live OpenAI generation remains pending until a key is configured. Automated and filmed generation is explicitly mocked. Reminders require Synapse to be running; full exit has no OS-backed scheduling service. A crash after a durable delivery claim but before the toast can leave a catch-up entry without a banner. File writes remain optimistic against other editors/cloud sync, rather than providing cross-process locking. Generated study material requires user review for correctness.
-
-The GitHub repository remains private. Validation media and synthetic vaults remain local and ignored by Git; they are not uploaded as repository content.
+Local evidence is excluded from publication under .local/: depth-0.6.0/report.json and screenshots, sound-0.6.0/mix-report.json, gateway-0.6.0.log, rust-0.6.0.log, clippy-0.6.0.log and publication audit reports. Public screenshots and footage use only synthetic content. Windows 11 Pro 10.0.26300 is the tested host; Windows 10 and physical multi-monitor DPI switching have not received separate hardware validation. The installer is unsigned.

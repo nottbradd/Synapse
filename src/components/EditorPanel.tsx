@@ -35,6 +35,7 @@ type Props = Pick<
   | "setStatus"
   | "status"
   | "unresolved"
+  | "exploration"
 >;
 export default function EditorPanel({
   vault,
@@ -57,6 +58,7 @@ export default function EditorPanel({
   setStatus,
   status,
   unresolved,
+  exploration,
 }: Props) {
   if (!vault || !doc) return null;
   return (
@@ -78,7 +80,20 @@ export default function EditorPanel({
               setDoc(null);
               setText("");
               setConflict(null);
-              feedback.action({ kind: "close", subject: selected?.subject_id });
+              feedback.action({
+                kind: "close",
+                subject: selected?.subject_id,
+                node: doc.id,
+                role:
+                  exploration.scope.kind === "topic" &&
+                  exploration.scope.level > 1
+                    ? "concept"
+                    : "topic",
+                level:
+                  exploration.scope.kind === "topic"
+                    ? exploration.scope.level
+                    : 1,
+              });
             })
           }
         >

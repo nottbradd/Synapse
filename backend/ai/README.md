@@ -1,26 +1,39 @@
-# Owner-managed AI service
+# Synapse AI owner guide
 
-Private owner billing and activation records were removed before public release. The historical contract and setup guide below describe this revision; see the latest release for current service availability. No service credentials are distributed.
+The hosted service is separate from the desktop and other applications. Its dedicated service credential belongs only in the Cloudflare Worker secret `OPENAI_SERVICE_KEY`. Local owner configuration, participant rosters, invitations and device tokens must stay private.
+
+As of 16 November 2026 the invitation-only service is active at https://synapse-ai.nottbradd.workers.dev. Its existing owner trial is complete. Preserve the current database, identities and ledger; do not bootstrap them again. Public source and downloads grant no hosted account or allowance.
+
+Current policy: 5 people; 10 generations/person/UTC day; 3 submissions/person/minute; one active generation/person; US$5/day, US$60/month and US$60 cumulative. The owner-approved funding cutoff is **2026-11-25T00:00:00Z (25 November 2026, 11 am Australia/Sydney)**. This is an earlier service safety limit, not a claimed precise provider credit expiry. No funding renewal is automatic. Later provider credential expiry does not extend this cutoff.
+
+For a replacement device, privately verify the participant and issue an invitation against their existing member UUID:
+
+```powershell
+cd backend/ai
+node owner.mjs invite --target remote --member MEMBER_UUID --minutes 10
+```
+
+Enter that invitation in **Preferences → AI provider → Synapse AI** after accepting the content-transfer notice. Never enter the owner service key into the desktop. Use `--new-person` only once for each genuinely new verified participant; never reset usage by creating a replacement identity. Keep the roster outside the repository.
 
 ## Contract and limits
 
 Authenticated participant endpoints are `POST /v1/enroll`, `/v1/status`, `/v1/generate` and `/v1/forget`. Public `/health` returns only the service name and effective pause state. There are no owner HTTP endpoints, arbitrary model calls, uploads, tools or configurable upstream URLs. Rust owns network requests and credential access.
 
-| Policy | Initial application default |
-| --- | --- |
-| Generations per person per UTC day | 10; owner may override per person |
-| Submitted generations per rolling 60 seconds | 3 across that person's devices |
-| Active generations | 1 per person, including unresolved interrupted requests |
-| Invitation lifetime | 10 minutes; configurable from 1–60 minutes |
-| Capacity | 5 people initially; owner-configurable, including disabled identities |
-| Quiz | 1–10 questions; 4,096 output tokens |
-| Flashcards | 1–20 cards; 4,096 output tokens |
-| Reminder | 1 draft; titles/references only; 768 output tokens |
-| Source text | 20 notes, 16,000 UTF-8 body bytes each, 60,000 bytes total |
-| Request limits | 2,000-byte prompt, 96 KiB HTTP body; 100,000-byte upstream payload, 18,000 bytes for reminders |
-| Upstream attempts | One per admitted ID; no automatic retry |
-| Spending | Owner-configured daily, monthly **and cumulative** ceilings |
-| Expiry | Earliest configured service, credit or credential deadline |
+| Policy                                       | Initial application default                                                                    |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Generations per person per UTC day           | 10; owner may override per person                                                              |
+| Submitted generations per rolling 60 seconds | 3 across that person's devices                                                                 |
+| Active generations                           | 1 per person, including unresolved interrupted requests                                        |
+| Invitation lifetime                          | 10 minutes; configurable from 1–60 minutes                                                     |
+| Capacity                                     | 5 people initially; owner-configurable, including disabled identities                          |
+| Quiz                                         | 1–10 questions; 4,096 output tokens                                                            |
+| Flashcards                                   | 1–20 cards; 4,096 output tokens                                                                |
+| Reminder                                     | 1 draft; titles/references only; 768 output tokens                                             |
+| Source text                                  | 20 notes, 16,000 UTF-8 body bytes each, 60,000 bytes total                                     |
+| Request limits                               | 2,000-byte prompt, 96 KiB HTTP body; 100,000-byte upstream payload, 18,000 bytes for reminders |
+| Upstream attempts                            | One per admitted ID; no automatic retry                                                        |
+| Spending                                     | Owner-configured daily, monthly **and cumulative** ceilings                                    |
+| Expiry                                       | Earliest configured service, credit or credential deadline                                     |
 
 The server pins `gpt-5.4-mini-2026-03-17`, Standard processing, global `https://api.openai.com/v1/responses`, `store:false`, no tools and no reasoning effort. It builds strict task schemas and validates output. Rust independently verifies shape, source membership and source revisions before displaying an editable draft. Only an explicit save persists it. Saved reminder scheduling and delivery are local and consume no further AI allowance.
 
@@ -79,7 +92,7 @@ Endpoint overrides require **both** debug mode and `test-api`; only loopback HTT
 
 The current deployment above is already active and its owner trial is complete. These bootstrap instructions describe a new deployment; they are not a reason to recreate the current database, identity or paid trial.
 
-1. Create a **dedicated OpenAI project and service account for Synapse**. Review data settings, available funding, exact grant expiry, service/key expiry and actual provider spend controls. Restrict the key to Responses creation and the pinned model where supported. Never put it in chat, source, desktop settings, command arguments or packages. Calendar's project/key/database must remain separate.
+1. Create a **dedicated OpenAI project and service account for Synapse**. Review data settings, available funding, exact grant expiry, service/key expiry and actual provider spend controls. Restrict the key to Responses creation and the pinned model where supported. Never put it in chat, source, desktop settings, command arguments or packages. Other applications must remain separate.
 2. For a new deployment, authenticate as the owner and create a dedicated D1 database, then put its verified UUID into `wrangler.jsonc`. The current Synapse database above already exists: do not recreate it or reapply the bootstrap as a spending reset. The CLI rejects placeholder or mismatched database IDs.
 
 ```powershell
@@ -97,7 +110,7 @@ pwsh -NoProfile -File ./set-service-key.ps1
 node owner.mjs usage --target remote
 ```
 
-The private helper verifies the remote database identity before accepting a SecureString, sends the key only through Wrangler's redirected stdin, suppresses child output and clears its transient character buffer. It writes no key file, argument or environment variable. Do not capture the reveal dialog, terminal input or clipboard. After entry, navigate away from the provider reveal page before any automation observation. Verify only `wrangler secret list`, masked provider metadata and deployment IDs. On this workstation, invoke Wrangler directly from `backend/ai`; `npm --prefix` can prevent discovery of the installed encrypted-auth keyring.
+The private helper verifies the remote database identity before accepting a SecureString, sends the key only through Wrangler's redirected stdin, suppresses child output and clears its transient character buffer. It writes no key file, argument or environment variable. Do not capture the reveal dialog, terminal input or clipboard. After entry, navigate away from the provider reveal page before any automation observation. Verify only `wrangler secret list`, masked provider metadata and deployment IDs. Invoke Wrangler directly from `backend/ai`; `npm --prefix` can prevent discovery of the installed encrypted-auth keyring.
 
 3. For a fresh deployment, check `/health`: service must be `synapse-ai`, paused must be true. Copy `owner-config.example.json` to ignored `owner-config.json` only for a new installation; do not overwrite the current applied policy. The example's deadlines are intentionally invalid until reviewed. Choose all three ceilings explicitly; example amounts are suggestions, not active defaults. Use `funding:"credit"` with a verified grant deadline, or an explicitly owner-approved earlier funding cutoff tied to a currently verified balance and documented as such. Never claim the latter is the provider's precise expiry. Use `"paid"` only for previously authorized funding, with `credit_expires:null`. Always set a finite `service_expires`, and set `credential_expires` when applicable. Dates are exact UTC instants, `YYYY-MM-DDTHH:mm:ssZ`. No grace period or assumed renewal applies. Configure while paused:
 

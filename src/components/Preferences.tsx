@@ -11,6 +11,7 @@ import {
 import { feedback } from "../interaction/events";
 import { useSystemReducedMotion } from "../hooks/useReducedMotion";
 import AiProviderSettings from "./AiProviderSettings";
+import type { SemanticRole } from "../interaction/exploration";
 export default function Preferences({ onClose }: { onClose: () => void }) {
   const p = usePreferences();
   const systemReduced = useSystemReducedMotion();
@@ -20,6 +21,7 @@ export default function Preferences({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [previewRole, setPreviewRole] = useState<SemanticRole>("topic");
   useEffect(() => {
     let active = true;
     void invoke<boolean>("startup_state")
@@ -134,10 +136,26 @@ export default function Preferences({ onClose }: { onClose: () => void }) {
                 }
               />
             </label>
+            <label>
+              Preview register
+              <select
+                aria-label="Preview sound register"
+                value={previewRole}
+                onChange={(e) => setPreviewRole(e.target.value as SemanticRole)}
+              >
+                <option value="subnetwork">Subnetwork · warm</option>
+                <option value="topic">Topic · clear</option>
+                <option value="concept">Concept · light</option>
+              </select>
+            </label>
             <button
               disabled={!p.sound}
               onClick={() =>
-                feedback.action({ kind: "select", node: "preferences-preview" })
+                feedback.action({
+                  kind: "select",
+                  node: "preferences-preview",
+                  role: previewRole,
+                })
               }
             >
               Preview sound

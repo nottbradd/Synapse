@@ -14,8 +14,11 @@ import {
 } from "../types";
 import { resolveWiki } from "../wiki";
 import { feedback } from "../interaction/events";
+import { Exploration } from "../interaction/exploration";
 type Pending = { title: string; detail: string; action: () => void };
 export function useWorkspace() {
+  const [exploration] = useState(() => new Exploration());
+  const [, renderNavigation] = useState(0);
   const [vault, setVault] = useState<Snapshot | null>(null),
     [doc, setDoc] = useState<Document | null>(null),
     [text, setText] = useState("");
@@ -37,9 +40,11 @@ export function useWorkspace() {
     external?: boolean;
   } | null>(null);
   const dirty = !!doc && text !== doc.content;
+  if (vault) exploration.sync(vault);
   const current = useRef({ vault, doc, text, dirty, busy });
   current.current = { vault, doc, text, dirty, busy };
   const loadSerial = useRef(0);
+  const loadingNote = useRef(false);
   const [now, setNow] = useState(() => Date.now() / 1000);
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now() / 1000), 1000);
@@ -120,17 +125,21 @@ export function useWorkspace() {
       void unerror.then((f) => f());
     };
   }, [applySnapshot, fail]);
-  const guard = useCallback((title: string, action: () => void) => {
-    if (current.current.busy) return;
-    if (current.current.dirty)
-      setPending({
-        title,
-        detail:
-          "This note has unsaved edits. Save them before continuing, or explicitly discard them.",
-        action,
-      });
-    else action();
-  }, []);
+  const guard = useCallback(
+    (title: string, action: () => void, allowLoading = false) => {
+      if (current.current.busy && !(allowLoading && loadingNote.current))
+        return;
+      if (current.current.dirty)
+        setPending({
+          title,
+          detail:
+            "This note has unsaved edits. Save them before continuing, or explicitly discard them.",
+          action,
+        });
+      else action();
+    },
+    [],
+  );
   useEffect(() => {
     if (!isTauri()) return;
     const cleanup = getCurrentWindow().onCloseRequested((e) => {
@@ -184,39 +193,123 @@ export function useWorkspace() {
     reason: "select" | "follow" = "select",
     source?: string,
   ) {
-    guard("Open another note?", () => {
-      void (async () => {
-        const root = current.current.vault?.root;
-        if (!root) return;
-        const serial = ++loadSerial.current;
-        setBusy(true);
-        setError("");
-        try {
-          const next = await invoke<Document>("read_note", {
-            vaultRoot: root,
-            id,
-          });
-          if (serial === loadSerial.current) {
+    if (
+      current.current.doc?.id === id &&
+      exploration.scope.kind === "topic" &&
+      exploration.scope.note === id
+    )
+      return;
+    guard(
+      "Open another note?",
+      () => {
+        void (async () => {
+          const root = current.current.vault?.root;
+          if (!root) return;
+          const serial = ++loadSerial.current;
+          loadingNote.current = true;
+          setBusy(true);
+          setError("");
+          try {
+            const next = await invoke<Document>("read_note", {
+              vaultRoot: root,
+              id,
+            });
+            if (serial === loadSerial.current) {
+              const voice = exploration.enterNote(id);
+              setDoc(next);
+              setText(next.content);
+              setConflict(null);
+              setReview(false);
+              setStatus("All changes saved");
+              feedback.action({
+                kind: reason,
+                node: id,
+                source,
+                role: voice.role,
+                level: voice.level,
+                subject: current.current.vault?.notes.find((n) => n.id === id)
+                  ?.subject_id,
+              });
+            }
+          } catch (e) {
+            fail(e, true);
+          } finally {
+            if (serial === loadSerial.current) {
+              loadingNote.current = false;
+              setBusy(false);
+            }
+          }
+        })();
+      },
+      true,
+    );
+  }
+  function navigateGraph(action: "back" | "overview" | { subject: string }) {
+    guard(
+      "Leave this note?",
+      () => {
+        void (async () => {
+          const snapshot = current.current.vault;
+          if (!snapshot) return;
+          exploration.sync(snapshot);
+          const previous = action === "back" ? exploration.previous : undefined;
+          if (action === "back" && !previous) return;
+          const serial = ++loadSerial.current;
+          loadingNote.current = true;
+          setBusy(true);
+          try {
+            const next = previous?.selected
+              ? await invoke<Document>("read_note", {
+                  vaultRoot: snapshot.root,
+                  id: previous.selected,
+                })
+              : null;
+            if (
+              serial !== loadSerial.current ||
+              current.current.vault?.root !== snapshot.root
+            )
+              return;
+            if (action === "back") exploration.back();
+            else if (action === "overview")
+              exploration.overview(snapshot.organization.location.neuron_id);
+            else
+              exploration.enter({
+                kind: "subnetwork",
+                subject: action.subject,
+              });
+            if (previous?.panelWidth) setPanelWidth(previous.panelWidth);
+            if (previous?.mode) setMode(previous.mode);
+            exploration.restoreAuxiliary?.(previous?.auxiliary, next?.id);
             setDoc(next);
-            setText(next.content);
+            setText(next?.content ?? "");
             setConflict(null);
             setReview(false);
-            setStatus("All changes saved");
+            renderNavigation((v) => v + 1);
+            const scope = exploration.scope;
             feedback.action({
-              kind: reason,
-              node: id,
-              source,
-              subject: current.current.vault?.notes.find((n) => n.id === id)
-                ?.subject_id,
+              kind: typeof action === "object" ? "focus" : "leave",
+              node: scope.kind === "topic" ? scope.note : undefined,
+              subject: scope.kind === "subnetwork" ? scope.subject : undefined,
+              role:
+                scope.kind === "topic"
+                  ? scope.level > 1
+                    ? "concept"
+                    : "topic"
+                  : "subnetwork",
+              level: scope.kind === "topic" ? scope.level : 0,
             });
+          } catch (e) {
+            fail(e, true);
+          } finally {
+            if (serial === loadSerial.current) {
+              loadingNote.current = false;
+              setBusy(false);
+            }
           }
-        } catch (e) {
-          fail(e, true);
-        } finally {
-          if (serial === loadSerial.current) setBusy(false);
-        }
-      })();
-    });
+        })();
+      },
+      true,
+    );
   }
   async function save(): Promise<boolean> {
     const state = current.current;
@@ -324,6 +417,7 @@ export function useWorkspace() {
         },
       );
       setVault(next);
+      exploration.enterNote(created.id);
       setDoc(created);
       setText(created.content);
       setCreate(null);
@@ -426,6 +520,8 @@ export function useWorkspace() {
   const unresolved =
     vault?.links.filter((l) => l.source === doc?.id && !l.target) ?? [];
   return {
+    exploration,
+    navigateGraph,
     vault,
     setVault,
     doc,

@@ -31,6 +31,7 @@ import {
   type SceneNode,
 } from "./topology";
 import { GraphLight, litColor, lightColor } from "./light";
+import type { Exploration, FocusView } from "./exploration";
 import {
   connection,
   curveLength,
@@ -40,6 +41,25 @@ import {
 } from "./connections";
 type Caption = Rect & { text: string; color: string };
 export class GraphScene {
+  exploration?: Exploration;
+  private navigationRevision = -1;
+  capture = (): FocusView => ({
+    ...this.exploration!.presentation,
+    scope: this.exploration!.scope,
+    selected: this.selected,
+    frame: { ...this.motion.frame },
+    positions: Object.fromEntries(
+      this.topology.visibleNodes.map((n) => [
+        n.id,
+        {
+          x: n.x ?? 0,
+          y: n.y ?? 0,
+          fx: n.fx,
+          fy: n.fy,
+        },
+      ]),
+    ),
+  });
   topology = new GraphTopology();
   api?: ForceGraphMethods<SceneNode>;
   view: Viewport = { width: 1200, height: 800, left: 312 };
@@ -121,6 +141,75 @@ export class GraphScene {
     reduced: boolean,
     auxiliaryOpen = false,
   ) {
+    if (this.exploration) {
+      const now = performance.now(),
+        navigation = this.exploration;
+      const changed = navigation.revision !== this.navigationRevision;
+      const selectionChanged = this.selected !== selected;
+      const open = !!selected || auxiliaryOpen;
+      const sizeChanged =
+        JSON.stringify(view) !== JSON.stringify(this.view) ||
+        editorWidth !== this.editorWidth;
+      this.snapshot = snapshot;
+      this.colors = new Map(
+        snapshot.organization.subjects.map((s) => [s.id, s.color]),
+      );
+      this.view = view;
+      this.editorWidth = editorWidth;
+      this.reduced = reduced;
+      this.query = query;
+      this.exploration.capture = this.capture;
+      if (changed) {
+        feedback.cancel(this.signals.cancel());
+        const restore = navigation.restore;
+        const target =
+          navigation.scope.kind === "topic"
+            ? this.topology.reveal.targets.get(navigation.scope.note)
+            : undefined;
+        this.retarget(
+          restore
+            ? { ...restore.frame, drawer: open ? editorWidth + 32 : 0 }
+            : target
+              ? {
+                  x: target.x,
+                  y: target.y,
+                  zoom: this.focusZoom(
+                    this.topology.positions.get(
+                      navigation.scope.kind === "topic"
+                        ? navigation.scope.note
+                        : "",
+                    )!,
+                    open ? editorWidth + 32 : 0,
+                  ),
+                  drawer: open ? editorWidth + 32 : 0,
+                }
+              : fitFrame(
+                  [...this.topology.reveal.targets.values()],
+                  view,
+                  open ? editorWidth + 32 : 0,
+                ),
+          now,
+        );
+        this.navigationRevision = navigation.revision;
+      } else if (
+        selectionChanged ||
+        auxiliaryOpen !== this.auxiliaryOpen ||
+        sizeChanged
+      ) {
+        // Closing a drawer changes occlusion, never the current knowledge scope.
+        this.retarget(
+          { ...this.motion.destination, drawer: open ? editorWidth + 32 : 0 },
+          now,
+        );
+      }
+      if (selectionChanged) this.rings.select(selected, now);
+      this.selected = selected;
+      this.auxiliaryOpen = auxiliaryOpen;
+      this.updateRelated();
+      this.dirty = true;
+      this.wake();
+      return;
+    }
     const now = performance.now(),
       scope = JSON.stringify(snapshot.organization.location),
       scopeChanged = scope !== this.scope;
@@ -209,11 +298,13 @@ export class GraphScene {
             : [],
       ),
     );
-    const nearby = this.topology.data.nodes
+    const centre = this.topology.reveal.targets.get(node.id) ?? node;
+    const nearby = this.topology.visibleNodes
       .filter((n) => linked.has(n.id))
+      .map((n) => this.topology.reveal.targets.get(n.id) ?? n)
       .map((n) => ({
-        dx: Math.abs((n.x ?? 0) - (node.x ?? 0)),
-        dy: Math.abs((n.y ?? 0) - (node.y ?? 0)),
+        dx: Math.abs((n.x ?? 0) - (centre.x ?? 0)),
+        dy: Math.abs((n.y ?? 0) - (centre.y ?? 0)),
       }))
       .sort((a, b) => Math.hypot(a.dx, a.dy) - Math.hypot(b.dx, b.dy))
       .slice(0, 8);
@@ -230,6 +321,14 @@ export class GraphScene {
   installForces() {
     const api = this.api;
     if (!api) return;
+    if (this.topology.nested) {
+      for (const force of ["charge", "link", "center", "subjects"])
+        api.d3Force(force, null);
+      this.engine = false;
+      this.initial = false;
+      this.wake();
+      return;
+    }
     (
       api.d3Force("charge") as unknown as { strength: (v: number) => void }
     )?.strength(-130);
@@ -323,8 +422,8 @@ export class GraphScene {
     this.retarget(
       fitFrame(
         all
-          ? this.topology.data.nodes
-          : compositionNodes(this.topology.data.nodes),
+          ? this.topology.visibleNodes
+          : compositionNodes(this.topology.visibleNodes),
         this.view,
         this.selected || this.auxiliaryOpen ? this.editorWidth + 32 : 0,
       ),
@@ -356,6 +455,7 @@ export class GraphScene {
   private tick = (now: number) => {
     this.raf = 0;
     this.time = now;
+    this.topology.reveal.advance(this.topology.data.nodes, now, this.reduced);
     const f = this.motion.advance(now, this.reduced),
       centre = cameraCentre(f, this.view);
     if (this.api) {
@@ -447,6 +547,7 @@ export class GraphScene {
     }
     if (
       this.motion.active ||
+      this.topology.reveal.active ||
       this.engine ||
       this.labels.active ||
       (!this.reduced && this.rings.active(now)) ||
@@ -456,43 +557,56 @@ export class GraphScene {
       this.raf = requestAnimationFrame(this.tick);
     } else this.api?.pauseAnimation();
   };
-  private projected(frame: Frame): LabelNode[] {
+  private projected(frame: Frame, destination = false): LabelNode[] {
     const prominent = new Set<string>();
     for (const subject of this.colors.keys()) {
-      this.topology.data.nodes
+      this.topology.visibleNodes
         .filter((n) => n.subject_id === subject)
         .sort((a, b) => b.neighbors - a.neighbors || a.id.localeCompare(b.id))
-        .slice(0, frame.zoom < 1.5 ? 2 : 4)
+        .slice(
+          0,
+          this.topology.visibleNodes.length <= 20
+            ? 20
+            : frame.zoom < 1.5
+              ? 2
+              : 4,
+        )
         .forEach((n) => prominent.add(n.id));
     }
-    return this.topology.data.nodes.map((n) => {
+    return this.topology.visibleNodes.map((n) => {
       const match = `${n.title} ${n.id}`
         .toLowerCase()
         .includes(this.query.toLowerCase());
       return {
-        ...project(n, frame, this.view),
+        ...project(
+          destination ? (this.topology.reveal.targets.get(n.id) ?? n) : n,
+          frame,
+          this.view,
+        ),
         id: n.id,
         title: n.title,
         radius: nodeScreenRadius(n, frame.zoom),
         priority:
-          n.id === this.selected
-            ? 1000
-            : n.id === this.hover
-              ? 900
-              : this.query
-                ? match
-                  ? 700
-                  : 0
-                : frame.zoom < 0.5 ||
-                    (!prominent.has(n.id) &&
-                      !this.related.has(n.id) &&
-                      frame.zoom < 1.8)
-                  ? 0
-                  : frame.zoom < 0.85 && n.neighbors < 3
+          n.role === "subnetwork"
+            ? 800
+            : n.id === this.selected
+              ? 1000
+              : n.id === this.hover
+                ? 900
+                : this.query
+                  ? match
+                    ? 700
+                    : 0
+                  : frame.zoom < 0.5 ||
+                      (!prominent.has(n.id) &&
+                        !this.related.has(n.id) &&
+                        frame.zoom < 1.8)
                     ? 0
-                    : 100 +
-                      Math.min(n.neighbors, 60) +
-                      (this.related.has(n.id) ? 80 : 0),
+                    : frame.zoom < 0.85 && n.neighbors < 3
+                      ? 0
+                      : 100 +
+                        Math.min(n.neighbors, 60) +
+                        (this.related.has(n.id) ? 80 : 0),
       };
     });
   }
@@ -502,6 +616,7 @@ export class GraphScene {
     ctx: CanvasRenderingContext2D,
   ): Caption[] {
     if (
+      this.topology.nested ||
       !this.measurements.ready ||
       this.snapshot?.organization.location.subject_id
     )
@@ -559,7 +674,7 @@ export class GraphScene {
     if (this.lightCanvas)
       this.light.render(
         this.lightCanvas,
-        this.topology.data.nodes,
+        this.topology.visibleNodes,
         this.colors,
         f,
         this.view,
@@ -572,7 +687,7 @@ export class GraphScene {
     if (this.measurements.ready) {
       if (this.dirty || (this.engine && now - this.planAt > 100)) {
         const target = this.motion.destination,
-          destination = this.projected(target),
+          destination = this.projected(target, true),
           b = usable(this.view, target.drawer),
           captionTargets = this.captions(destination, b, ctx);
         ctx.font = LABEL_FONT;
@@ -677,10 +792,27 @@ export class GraphScene {
     );
   }
   isInteractive(n: SceneNode) {
-    return inside(
-      project(n, this.motion.frame, this.view),
-      usable(this.view, this.motion.frame.drawer),
+    return (
+      (!this.topology.nested || this.topology.reveal.visible.has(n.id)) &&
+      inside(
+        project(n, this.motion.frame, this.view),
+        usable(this.view, this.motion.frame.drawer),
+      )
     );
+  }
+  hitTest(x: number, y: number) {
+    // The renderer's colour-picking canvas is throttled by 800 ms. Navigation
+    // must resolve against this frame, including during a reveal or reversal.
+    return this.topology.visibleNodes
+      .filter((n) => this.isInteractive(n))
+      .map((n) => ({ n, p: project(n, this.motion.frame, this.view) }))
+      .map(({ n, p }) => ({ n, distance: Math.hypot(p.x - x, p.y - y) }))
+      .filter(
+        ({ n, distance }) =>
+          distance <=
+          Math.max(10, nodeScreenRadius(n, this.motion.frame.zoom) + 3),
+      )
+      .sort((a, b) => a.distance - b.distance)[0]?.n;
   }
   drawEdge(
     edge: { source?: unknown; target?: unknown },
@@ -694,17 +826,39 @@ export class GraphScene {
       active = this.related.has(a.id) && this.related.has(b.id);
     const color = this.colors.get(a.subject_id) ?? "#95a6b8";
     ctx.save();
-    ctx.beginPath();
-    trace(
-      ctx,
-      connection(
-        { x: (a.x ?? 0) * scale, y: (a.y ?? 0) * scale },
-        { x: (b.x ?? 0) * scale, y: (b.y ?? 0) * scale },
-        a.id,
-        b.id,
-      ),
-      scale,
+    const progress = Math.max(
+      0,
+      Math.min(1, this.topology.reveal.edgeProgress(a.id, b.id)),
     );
+    if (progress === 0) {
+      ctx.restore();
+      return;
+    }
+    ctx.globalAlpha =
+      progress *
+      Math.max(
+        0,
+        Math.min(
+          this.topology.reveal.alpha(a.id),
+          this.topology.reveal.alpha(b.id),
+        ),
+      );
+    ctx.beginPath();
+    const path = connection(
+      { x: (a.x ?? 0) * scale, y: (a.y ?? 0) * scale },
+      { x: (b.x ?? 0) * scale, y: (b.y ?? 0) * scale },
+      a.id,
+      b.id,
+    );
+    if (progress >= 0.999 || this.reduced) trace(ctx, path, scale);
+    else {
+      const first = pointOn(path, 0);
+      ctx.moveTo(first.x / scale, first.y / scale);
+      for (let i = 1; i <= 16; i++) {
+        const p = pointOn(path, (progress * i) / 16);
+        ctx.lineTo(p.x / scale, p.y / scale);
+      }
+    }
     if (same) {
       ctx.strokeStyle = lightColor(
         color,
@@ -740,7 +894,9 @@ export class GraphScene {
         : 1;
     const halo = r * (active ? 2.1 : 1.65);
     ctx.globalCompositeOperation = "lighter";
-    ctx.globalAlpha = alpha * this.lightDensity() * (connected ? 0.5 : 0.3);
+    const reveal = Math.max(0, this.topology.reveal.alpha(n.id));
+    ctx.globalAlpha =
+      alpha * reveal * this.lightDensity() * (connected ? 0.5 : 0.3);
     ctx.drawImage(
       this.light.texture(color),
       x - halo,
@@ -749,8 +905,8 @@ export class GraphScene {
       halo * 2,
     );
     ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = alpha;
-    if (n.neighbors < 2) {
+    ctx.globalAlpha = alpha * reveal;
+    if (n.neighbors < 2 && n.role !== "subnetwork") {
       ctx.fillStyle = litColor(color, active ? 0.65 : 0.18);
       ctx.beginPath();
       ctx.moveTo(x, y - r);

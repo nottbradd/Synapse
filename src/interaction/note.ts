@@ -1,33 +1,47 @@
-import wave from "./assets/note-clean.wav?inline";
+import type { SemanticRole } from "./exploration";
 
-// The approved 48 kHz, stereo PCM16 Clean sample is bundled unchanged. Decode
-// synchronously on the first gesture so the first action needs no network or
-// async decoder, and no second AudioContext. This is deliberately a fixed-asset
-// reader, not an importer for user-provided WAV files.
-export function noteBuffer(context: BaseAudioContext) {
-  const bytes = Uint8Array.from(atob(wave.slice(wave.indexOf(",") + 1)), (c) =>
-    c.charCodeAt(0),
-  );
-  const view = new DataView(bytes.buffer);
-  if (
-    view.getUint32(0, false) !== 0x52494646 ||
-    view.getUint32(8, false) !== 0x57415645 ||
-    view.getUint32(12, false) !== 0x666d7420 ||
-    view.getUint32(16, true) !== 16 ||
-    view.getUint16(20, true) !== 1 ||
-    view.getUint16(22, true) !== 2 ||
-    view.getUint32(24, true) !== 48000 ||
-    view.getUint16(34, true) !== 16 ||
-    view.getUint32(36, false) !== 0x64617461 ||
-    view.getUint32(40, true) !== bytes.length - 44
-  )
-    throw Error("Invalid bundled note sample");
-  const frames = (bytes.length - 44) / 4;
-  const buffer = context.createBuffer(2, frames, 48000);
-  for (let channel = 0; channel < 2; channel++) {
-    const samples = buffer.getChannelData(channel);
-    for (let i = 0; i < frames; i++)
-      samples[i] = view.getInt16(44 + i * 4 + channel * 2, true) / 32768;
-  }
-  return buffer;
+// Original additive synthesis, written for Synapse. No recorded sample,
+// notification waveform, extracted spectrum or external audio is used.
+export interface SoundContext {
+  role?: SemanticRole;
+  level?: number;
+  node?: string;
+}
+const banks = {
+  subnetwork: [261.6256, 293.6648, 329.6276, 391.9954],
+  topic: [523.2511, 587.3295, 659.2551, 783.9909],
+  concept: [1046.5023, 1174.6591, 1318.5102],
+} as const;
+export function identityHash(id: string) {
+  let h = 2166136261;
+  for (const c of id) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return h >>> 0;
+}
+export function nodeVoice(context: SoundContext, repetition = 0) {
+  const role =
+    context.role ??
+    ((context.level ?? 1) >= 2
+      ? "concept"
+      : (context.level ?? 1) <= 0
+        ? "subnetwork"
+        : "topic");
+  const bank = banks[role],
+    hash = identityHash(context.node ?? "synapse");
+  const variation = (identityHash(`${context.node}:${repetition}`) % 101) / 100;
+  const register = role === "subnetwork" ? 0 : role === "topic" ? 1 : 2;
+  return {
+    role,
+    frequency: bank[hash % bank.length],
+    detune: (variation - 0.5) * 3,
+    attack: 0.0025 + variation * 0.0015,
+    duration: [0.3, 0.235, 0.17][register],
+    decay: [0.06, 0.044, 0.032][register],
+    gain: [0.19, 0.15, 0.105][register] * (0.96 + variation * 0.04),
+    partials: [
+      [1, 1],
+      [2, [0.045, 0.065, 0.028][register]],
+      [3, 0.025],
+      [4, 0.012],
+    ],
+  };
 }

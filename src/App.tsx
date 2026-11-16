@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
@@ -121,6 +121,38 @@ export default function App() {
     320,
     Math.min(studyOpen ? 560 : w.panelWidth, width - left - 180),
   );
+  useLayoutEffect(
+    () =>
+      w.exploration.setPresentation(
+        {
+          panelWidth: w.panelWidth,
+          mode: w.mode,
+          auxiliary: studyOpen ? studyPanel?.view : undefined,
+        },
+        (view, selected) =>
+          setStudyPanel(
+            view
+              ? {
+                  origin: JSON.stringify([
+                    vault?.root,
+                    vault?.organization.location,
+                    selected,
+                  ]),
+                  view,
+                }
+              : null,
+          ),
+      ),
+    [
+      w.exploration,
+      w.panelWidth,
+      w.mode,
+      studyOpen,
+      studyPanel?.view,
+      vault?.root,
+      vault?.organization.location,
+    ],
+  );
   return (
     <main className="app" data-motion={reduced ? "reduced" : "full"}>
       {!vault ? (
@@ -150,6 +182,8 @@ export default function App() {
           <Graph
             key={vault.root}
             snapshot={vault}
+            exploration={w.exploration}
+            onNavigate={w.navigateGraph}
             selected={doc?.id}
             query={w.query}
             left={left}
