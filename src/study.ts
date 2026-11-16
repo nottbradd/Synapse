@@ -105,6 +105,10 @@ export interface StudyView {
 }
 export interface DeviceSettings {
   test_api: boolean;
+  provider: "synapse" | "personal";
+  hosted_consent: boolean;
+  hosted_configured: boolean;
+  hosted_connected: boolean;
   model: string;
   models: string[];
   max_output_tokens: number;
@@ -118,6 +122,23 @@ export interface DeviceSettings {
     last_request_at: number | null;
   };
   error: string | null;
+}
+export interface HostedStatus {
+  member: string;
+  device: string;
+  server_time: number;
+  reason: string | null;
+  remaining: number;
+  daily_limit: number;
+  reset_at: number;
+  retry_at: number | null;
+  requests: number;
+  input_tokens: number;
+  output_tokens: number;
+  estimated_nusd: number;
+  reserved_nusd: number;
+  active: boolean;
+  model: string;
 }
 export interface ResolvedReminder {
   due: number;

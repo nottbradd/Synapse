@@ -1818,3 +1818,8 @@ h3 {
     padding-top: 8px;
   }
 }
+/* Hosted status stays within the existing study/settings rhythm. */
+.hosted-details { margin-block: 12px; }
+.hosted-details summary { cursor: pointer; color: var(--muted); }
+.hosted-details p { overflow-wrap: anywhere; }
+.hosted-allowance { margin-block: 12px; font-size: 12px; }

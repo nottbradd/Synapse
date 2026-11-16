@@ -1,5 +1,23 @@
 # Synapse validation
 
+## 0.5.0 owner-funded AI — 16 November 2026
+
+Implemented a separate Synapse Worker/D1 gateway, protected Wrangler owner CLI and explicit desktop provider selection. Calendar's supplied AI architecture was read only; no Calendar files, database, secret or deployment were changed. The checked-in Synapse database ID is still a placeholder, and the installed desktop has no live gateway origin. No live Cloudflare deployment, owner service credential, OpenAI inference, provider billing or credit application is claimed.
+
+Completed local checks:
+
+- TypeScript typecheck, ESLint and 56 frontend tests passed.
+- Rust formatting and Clippy with warnings denied passed. Final Rust suite: **46 passed**, one explicit live-provider test ignored.
+- **22 gateway tests** passed against actual local D1 with mocked OpenAI responses. Coverage includes cross-device allowances, concurrent last-allowance and shared-budget admission, one active request per person, rolling rate limits, duplicate IDs, interrupted requests, retained reservations, missing/partial usage, atomic overrun pause, revocation/disablement, single-use/expired invitations, capacity, expiry during upload, server-clock resets, forbidden overrides, missing credentials, storage/guard failures and fresh paused defaults.
+- `scripts/hosted-ui.mjs` passed seven browser interaction checks using real React and the real local Worker/D1, with **desktop IPC and OpenAI mocked**. Consent gates activation; provider changes require explicit apply; generation yields an editable unsaved quiz; saving is explicit; a saved quiz opens without gateway access; hosted failure makes zero personal-key calls; detailed allowance and device revocation work. Evidence: ignored `.local/hosted-ui/report.json` and labelled screenshots. This browser harness is not native desktop inference evidence.
+- Production Vite/Rust/NSIS build passed. Worker production bundling passed `wrangler deploy --dry-run`; this did not deploy it.
+- Production dependency audit and complete backend dependency audit reported zero vulnerabilities.
+- The release binary contains no test endpoint override strings, mock-service credential literal or owner secret binding. Test routes require debug mode plus the explicit test feature and are excluded from release.
+
+The **0.5.0 installer completed with exit code 0**. Windows file/product version reads 0.5.0. The actual installed app was opened at `http://tauri.localhost/` through native Windows automation. It restored the existing synthetic vault and preserved **Personal API key**, **Full** animations, enabled sound and **69%** volume. Previewing Synapse AI showed its consent notice and honest service-not-configured state, with activation and switching disabled before consent; the stored provider remained personal. No personal key was read into the UI, replaced or tested, and no live hosted generation was attempted.
+
+Installer: `src-tauri/target/release/bundle/nsis/Synapse_0.5.0_x64-setup.exe`. SHA-256: `7B16ED68CD6C19220706DF71B25CAED2CC31157601329DAFC3D16199BBAE81C6`. The installer remains unsigned. Owner deployment/activation and provider verification are intentionally pending the separate credential, endpoint, funding ceilings and expiry configuration documented in [backend/ai/README.md](backend/ai/README.md).
+
 ## 0.4.1 motion correction — 16 November 2026
 
 Windows reported `SPI_GETCLIENTAREAANIMATION=false`. After explicitly clearing Playwright's default media emulation, the installed WebView also reported `prefers-reduced-motion: reduce`. Following Windows therefore correctly skipped spatial animation, but the app provided no independent Full choice. Earlier normal-motion emulation masked this configuration.

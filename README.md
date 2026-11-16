@@ -1,6 +1,6 @@
 # Synapse
 
-A local-first Windows workspace for Markdown notes, linked knowledge, flashcard revision, quizzes and reminders. Optional bring-your-own-key OpenAI generation creates editable study drafts. Built with Tauri v2, Rust, React, TypeScript, Vite, Tailwind, CodeMirror 6, and a Canvas force graph.
+A local-first Windows workspace for Markdown notes, linked knowledge, flashcard revision, quizzes and reminders. Optional owner-funded Synapse AI or a personal OpenAI key creates editable study drafts. Built with Tauri v2, Rust, React, TypeScript, Vite, Tailwind, CodeMirror 6, and a Canvas force graph.
 
 Open a folder to start. Synapse never populates a personal vault with sample content. A clearly marked synthetic vault is available in `fixtures/demo-vault`; copy it to a temporary folder before experimenting.
 
@@ -85,6 +85,12 @@ One lazy Web Audio instrument produces dry contact, low-mid body and a short dam
 See [interaction architecture](INTERACTION.md) and [executed validation](VALIDATION.md) for timing, lifecycle and test boundaries.
 
 ## Study creation and optional OpenAI
+
+**Preferences → Study creation → AI provider** offers **Synapse AI** (owner-funded) and **Personal API key**. New installations lead with Synapse AI; existing installations retain their personal-key provider, credentials and settings. Provider changes require an explicit action. Exhausting hosted allowance or shared funding never falls back to a personal key.
+
+For Synapse AI, read the data notice and activate a private invitation. Selected content passes through the Synapse gateway to OpenAI. A person's devices share 10 generations per UTC day by default, 3 submissions per minute and one active generation. Hosted quizzes allow up to 10 questions; flashcards allow up to 20 cards. The compact allowance shows the server reset in your configured timezone; details and service status live in Preferences. Shared budget, personal allowance and paused/unavailable service states are distinguished. Saved study, editing, graph navigation, flashcards and reminder delivery remain local when the gateway is unavailable.
+
+The backend starts paused and requires a **separate** Synapse database, server-side service credential, reviewed pricing, owner-configured daily/monthly/cumulative ceilings and explicit expiry. This repository does not supply a live owner credential. A build without `SYNAPSE_AI_URL` reports that the service is not configured. See [owner setup, architecture and local verification](backend/ai/README.md) before activation. The owner's key never belongs in the desktop or portable packages.
 
 **Create** opens one drawer with Quiz, Flashcards and Reminder tabs. Work manually or explicitly generate a draft. Select the current note, notes from the current scope, or a subject; inspect the exact outgoing source text before generation. Limits are 20 source notes, 16,000 UTF-8 bytes per note, 60,000 total source bytes and 20 generated items. Excluded notes are listed; attachments and unrelated subjects are never uploaded automatically. Reminder interpretation sends the selected target references and request, not note bodies.
 

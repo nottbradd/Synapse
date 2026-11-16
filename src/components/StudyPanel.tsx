@@ -27,6 +27,8 @@ import {
 import { feedback } from "../interaction/events";
 import { FlashcardEditor, QuizEditor, ReminderEditor } from "./StudyEditors";
 import QuizPlayer from "./QuizPlayer";
+import { useHostedAllowance } from "../hooks/useHostedAllowance";
+import { allowanceText, hostedMessage } from "../hosted";
 
 type Working = { id: string; draft: StudyDraft; context: StudyContext };
 export default function StudyPanel({
@@ -99,6 +101,18 @@ export default function StudyPanel({
     activeRequest = useRef<string | null>(null),
     saveLock = useRef(false);
   const scope = snapshot.organization.location;
+  const hosted = settings?.provider === "synapse";
+  const allowance = useHostedAllowance(settings);
+  const itemCount = hosted && kind === "quiz" ? Math.min(count, 10) : count;
+  const aiReady =
+    settings &&
+    (hosted
+      ? settings.hosted_configured &&
+        settings.hosted_connected &&
+        settings.hosted_consent &&
+        !!allowance.status &&
+        !allowance.status.reason
+      : settings.key_present || settings.test_api);
   const scopedNotes = snapshot.notes.filter(
     (n) =>
       (!scope.subject_id || n.subject_id === scope.subject_id) &&
@@ -269,7 +283,7 @@ export default function StudyPanel({
             request_id: id,
             kind,
             prompt,
-            count: kind === "reminder" ? 1 : count,
+            count: kind === "reminder" ? 1 : itemCount,
           },
         });
         if (serial !== sequence.current) return;
@@ -283,6 +297,7 @@ export default function StudyPanel({
         feedback.action({ kind: "error" });
       }
     } finally {
+      if (!manual) window.dispatchEvent(new Event("synapse-ai-usage-changed"));
       if (serial === sequence.current) {
         setBusy(false);
         activeRequest.current = null;
@@ -963,10 +978,13 @@ export default function StudyPanel({
                   <select
                     aria-label="Number of study items"
                     disabled={busy}
-                    value={count}
+                    value={itemCount}
                     onChange={(e) => setCount(Number(e.target.value))}
                   >
-                    {[3, 5, 10, 15, 20].map((n) => (
+                    {(hosted && kind === "quiz"
+                      ? [3, 5, 10]
+                      : [3, 5, 10, 15, 20]
+                    ).map((n) => (
                       <option key={n} value={n}>
                         {n} {kind === "quiz" ? "questions" : "cards"}
                       </option>
@@ -980,6 +998,7 @@ export default function StudyPanel({
                 <button
                   className="primary"
                   disabled={
+                    !aiReady ||
                     !context ||
                     !prompt.trim() ||
                     (kind !== "reminder" && !context.sources.length)
@@ -1001,7 +1020,36 @@ export default function StudyPanel({
                 Mock API — local deterministic test responses
               </p>
             )}
-            {!settings?.key_present && !settings?.test_api && (
+            {hosted && (
+              <div className="hosted-allowance">
+                <p className="muted">
+                  Synapse AI
+                  {allowance.status
+                    ? ` · ${allowanceText(allowance.status, settings.timezone)}`
+                    : ""}
+                </p>
+                {allowance.status?.reason && (
+                  <p className="form-notice">
+                    {hostedMessage(allowance.status.reason)}
+                  </p>
+                )}
+                {allowance.error && (
+                  <p className="form-error" role="alert">
+                    {allowance.error}
+                  </p>
+                )}
+                {!settings.hosted_connected && (
+                  <p className="muted">
+                    Activate your invitation in{" "}
+                    <button className="inline-button" onClick={onSettings}>
+                      Settings
+                    </button>
+                    , or create a draft manually.
+                  </p>
+                )}
+              </div>
+            )}
+            {!hosted && !settings?.key_present && !settings?.test_api && (
               <p className="muted">
                 Add an API key in{" "}
                 <button className="inline-button" onClick={onSettings}>
@@ -1024,6 +1072,9 @@ export default function StudyPanel({
             <p className="muted">
               Generated study material can be inaccurate and is not an official
               examination.
+              {kind === "reminder"
+                ? " Once saved, reminder scheduling and delivery are local and use no AI allowance."
+                : ""}
             </p>
             <button
               className="saved-study-link"

@@ -11,6 +11,8 @@ export default ts.config(
       ".local",
       "src-tauri/target",
       "src-tauri/gen",
+      "**/.wrangler/**",
+      "**/node_modules/**",
     ],
   },
   {

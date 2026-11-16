@@ -10,6 +10,7 @@ import {
 } from "../interaction/preferences";
 import { feedback } from "../interaction/events";
 import { useSystemReducedMotion } from "../hooks/useReducedMotion";
+import AiProviderSettings from "./AiProviderSettings";
 export default function Preferences({ onClose }: { onClose: () => void }) {
   const p = usePreferences();
   const systemReduced = useSystemReducedMotion();
@@ -149,134 +150,151 @@ export default function Preferences({ onClose }: { onClose: () => void }) {
             <>
               <section className="settings-group">
                 <h3>Study creation</h3>
-                <p>
-                  Optional OpenAI API access. API usage has separate billing
-                  from ChatGPT; a subscription does not automatically cover
-                  these requests.
-                </p>
-                <label>
-                  API key{" "}
-                  <span className="muted">
-                    {settings.key_present
-                      ? "Stored in Windows Credential Manager"
-                      : "No key stored"}
-                  </span>
-                  <input
-                    type="password"
-                    autoComplete="off"
-                    spellCheck={false}
-                    aria-label="OpenAI API key"
-                    value={key}
-                    maxLength={512}
-                    placeholder={
-                      settings.key_present
-                        ? "Enter a replacement key"
-                        : "Enter your API key"
-                    }
-                    onChange={(e) => setKey(e.target.value)}
-                  />
-                </label>
-                <div className="button-row">
-                  <button
-                    disabled={busy || !key.trim()}
-                    onClick={() => {
-                      const entered = key.trim();
-                      setKey("");
-                      void run(
-                        async () =>
-                          setSettings(
-                            await invoke<DeviceSettings>("set_api_key", {
-                              key: entered,
-                            }),
-                          ),
-                        "Key stored securely",
-                      );
-                    }}
-                  >
-                    {settings.key_present ? "Replace key" : "Store key"}
-                  </button>
-                  {settings.key_present && (
+                <AiProviderSettings
+                  settings={settings}
+                  onSettings={setSettings}
+                  run={run}
+                  busy={busy}
+                />
+                {settings.provider === "personal" && (
+                  <>
+                    <p>
+                      Optional OpenAI API access. API usage has separate billing
+                      from ChatGPT; a subscription does not automatically cover
+                      these requests.
+                    </p>
+                    <label>
+                      API key{" "}
+                      <span className="muted">
+                        {settings.key_present
+                          ? "Stored in Windows Credential Manager"
+                          : "No key stored"}
+                      </span>
+                      <input
+                        type="password"
+                        autoComplete="off"
+                        spellCheck={false}
+                        aria-label="OpenAI API key"
+                        value={key}
+                        maxLength={512}
+                        placeholder={
+                          settings.key_present
+                            ? "Enter a replacement key"
+                            : "Enter your API key"
+                        }
+                        onChange={(e) => setKey(e.target.value)}
+                      />
+                    </label>
+                    <div className="button-row">
+                      <button
+                        disabled={busy || !key.trim()}
+                        onClick={() => {
+                          const entered = key.trim();
+                          setKey("");
+                          void run(
+                            async () =>
+                              setSettings(
+                                await invoke<DeviceSettings>("set_api_key", {
+                                  key: entered,
+                                }),
+                              ),
+                            "Key stored securely",
+                          );
+                        }}
+                      >
+                        {settings.key_present ? "Replace key" : "Store key"}
+                      </button>
+                      {settings.key_present && (
+                        <button
+                          disabled={busy}
+                          onClick={() =>
+                            void run(
+                              async () =>
+                                setSettings(
+                                  await invoke<DeviceSettings>(
+                                    "remove_api_key",
+                                  ),
+                                ),
+                              "Key removed",
+                            )
+                          }
+                        >
+                          Remove key
+                        </button>
+                      )}
+                    </div>
+                    <div className="form-pair">
+                      <label>
+                        Model
+                        <select
+                          aria-label="OpenAI model"
+                          value={settings.model}
+                          onChange={(e) =>
+                            setSettings({ ...settings, model: e.target.value })
+                          }
+                        >
+                          {settings.models.map((m) => (
+                            <option key={m} value={m}>
+                              {m === "gpt-5.4-mini"
+                                ? "GPT-5.4 mini"
+                                : "GPT-5.4"}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Maximum output tokens
+                        <input
+                          aria-label="Maximum output tokens"
+                          type="number"
+                          min={512}
+                          max={16384}
+                          step={512}
+                          value={settings.max_output_tokens}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              max_output_tokens: Number(e.target.value),
+                            })
+                          }
+                        />
+                      </label>
+                    </div>
                     <button
-                      disabled={busy}
+                      disabled={busy || !settings.key_present}
                       onClick={() =>
                         void run(
                           async () =>
                             setSettings(
-                              await invoke<DeviceSettings>("remove_api_key"),
+                              await invoke<DeviceSettings>(
+                                "test_api_connection",
+                              ),
                             ),
-                          "Key removed",
+                          "Connection verified with a small structured response",
                         )
                       }
                     >
-                      Remove key
+                      Test saved connection
                     </button>
-                  )}
-                </div>
-                <div className="form-pair">
-                  <label>
-                    Model
-                    <select
-                      aria-label="OpenAI model"
-                      value={settings.model}
-                      onChange={(e) =>
-                        setSettings({ ...settings, model: e.target.value })
-                      }
-                    >
-                      {settings.models.map((m) => (
-                        <option key={m} value={m}>
-                          {m === "gpt-5.4-mini" ? "GPT-5.4 mini" : "GPT-5.4"}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Maximum output tokens
-                    <input
-                      aria-label="Maximum output tokens"
-                      type="number"
-                      min={512}
-                      max={16384}
-                      step={512}
-                      value={settings.max_output_tokens}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          max_output_tokens: Number(e.target.value),
-                        })
-                      }
-                    />
-                  </label>
-                </div>
-                <button
-                  disabled={busy || !settings.key_present}
-                  onClick={() =>
-                    void run(
-                      async () =>
-                        setSettings(
-                          await invoke<DeviceSettings>("test_api_connection"),
-                        ),
-                      "Connection verified with a small structured response",
-                    )
-                  }
-                >
-                  Test saved connection
-                </button>
-                <p className="muted">
-                  The explicit test sends no notes and permits at most 128
-                  output tokens. Apply model changes before testing. No
-                  automatic retries or model substitutions.
-                </p>
-                <p className="usage-info">
-                  This device: {settings.usage.requests.toLocaleString()}{" "}
-                  responses · {settings.usage.input_tokens.toLocaleString()}{" "}
-                  input tokens · {settings.usage.output_tokens.toLocaleString()}{" "}
-                  output tokens
-                </p>
-                <p className="muted">
-                  These local counters cover responses received here, not your
-                  billing balance. Cancelled or interrupted requests may still
-                  incur usage.
-                </p>
+                    <p className="muted">
+                      The explicit test sends no notes and permits at most 128
+                      output tokens. Apply model changes before testing. No
+                      automatic retries or model substitutions.
+                    </p>
+                    <p className="usage-info">
+                      This device: {settings.usage.requests.toLocaleString()}{" "}
+                      responses · {settings.usage.input_tokens.toLocaleString()}{" "}
+                      input tokens ·{" "}
+                      {settings.usage.output_tokens.toLocaleString()} output
+                      tokens
+                    </p>
+                    <p className="muted">
+                      These local counters cover responses received here, not
+                      your billing balance. Cancelled or interrupted requests
+                      may still incur usage.
+                    </p>
+                  </>
+                )}
               </section>
               <section className="settings-group">
                 <h3>Reminders</h3>

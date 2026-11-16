@@ -3,6 +3,7 @@ mod commands;
 mod device;
 mod errors;
 mod flashcards;
+mod hosted;
 mod links;
 mod notes;
 mod organization;
@@ -102,6 +103,10 @@ pub fn run() {
             commands::import_subject,
             commands::export_subject,
             study_commands::device_settings,
+            study_commands::select_ai_provider,
+            study_commands::enroll_synapse_ai,
+            study_commands::synapse_ai_status,
+            study_commands::forget_synapse_ai,
             study_commands::save_device_settings,
             study_commands::set_api_key,
             study_commands::remove_api_key,

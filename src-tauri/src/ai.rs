@@ -1,6 +1,6 @@
 use crate::{
     commands::Backend,
-    device::{CredentialStore, Device, OsCredential},
+    device::{CredentialStore, Device, OsCredential, Provider},
     errors::{Error, Result},
     organization::Location,
     study::{self, FlashcardDraft, QuizDraft, ReminderDraft, SourceRef},
@@ -90,6 +90,13 @@ pub struct Requests {
 #[derive(Default)]
 pub struct AiState(pub Mutex<Requests>);
 impl AiState {
+    pub fn cancel_running(&self) {
+        if let Ok(state) = self.0.lock() {
+            for token in state.running.values() {
+                token.cancel();
+            }
+        }
+    }
     pub fn cancel(&self, id: Option<&str>) {
         if let Ok(mut state) = self.0.lock() {
             for (key, token) in &state.running {
@@ -324,6 +331,12 @@ pub async fn post(
     cancellation: &CancellationToken,
 ) -> Result<Value> {
     let endpoint = crate::device::test_api_url();
+    if crate::hosted::testing() && endpoint.is_none() {
+        return Err(Error::new(
+            "test_api",
+            "Personal-key calls are disabled in the hosted-only local test fixture.",
+        ));
+    }
     post_to(
         client,
         endpoint
@@ -555,17 +568,19 @@ pub async fn generate(
         }
     }
     let config = device.get()?;
-    let credential = if crate::device::test_api_url().is_some() {
+    let credential = if config.provider == Provider::Synapse {
+        None
+    } else if crate::device::test_api_url().is_some() {
         Some(zeroize::Zeroizing::new("mock-local-only".to_string()))
     } else {
         OsCredential.read()?
     };
-    let key = credential.ok_or_else(|| {
-        Error::new(
+    if config.provider == Provider::Personal && credential.is_none() {
+        return Err(Error::new(
             "api_key",
             "Add an OpenAI API key in Settings, or start a manual draft.",
-        )
-    })?;
+        ));
+    }
     let cancel = CancellationToken::new();
     {
         let mut s = state
@@ -589,14 +604,19 @@ pub async fn generate(
         id: request.request_id.clone(),
     };
     let at = study::now();
-    let response = post(
-        &device.client,
-        &key,
-        payload(&request, &context, &config, at),
-        &cancel,
-    )
-    .await;
-    let response = response?;
+    // Resolve the selected provider once. A hosted failure can never fall through to a personal key.
+    let response = match config.provider {
+        Provider::Synapse => crate::hosted::generate(device, &request, &context, &cancel).await?,
+        Provider::Personal => {
+            post(
+                &device.client,
+                credential.as_deref().expect("personal key checked"),
+                payload(&request, &context, &config, at),
+                &cancel,
+            )
+            .await?
+        }
+    };
     let input = response
         .pointer("/usage/input_tokens")
         .and_then(Value::as_u64)
@@ -605,10 +625,16 @@ pub async fn generate(
         .pointer("/usage/output_tokens")
         .and_then(Value::as_u64)
         .unwrap_or(0);
-    let usage_warning = device
-        .usage(input, output)
-        .err()
-        .map(|_| "Usage was received but the local counter could not be saved".into());
+    let usage_warning = if config.provider == Provider::Personal {
+        device
+            .usage(input, output)
+            .err()
+            .map(|_| "Usage was received but the local counter could not be saved".into())
+    } else if response["accounting"].as_str() == Some("reserved") {
+        Some("The service has retained a conservative spending reservation because complete usage was not reported.".into())
+    } else {
+        None
+    };
     if cancel.is_cancelled() {
         return Err(cancelled());
     }
@@ -646,7 +672,7 @@ pub async fn generate(
         draft,
         input_tokens: input,
         output_tokens: output,
-        reference_time: at,
+        reference_time: response["reference_time"].as_i64().unwrap_or(at),
         usage_warning,
     })
 }

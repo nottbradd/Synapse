@@ -20,6 +20,8 @@ jobs:
         with:
           workspaces: src-tauri -> target
       - run: npm ci
+      - run: npm ci --prefix backend/ai
+      - run: npm test --prefix backend/ai
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test

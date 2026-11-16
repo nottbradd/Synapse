@@ -13,6 +13,57 @@ use tauri::{Emitter, Manager, State};
 use zeroize::Zeroizing;
 
 #[tauri::command]
+pub fn select_ai_provider(
+    device: State<'_, Device>,
+    ai: State<'_, AiState>,
+    provider: device::Provider,
+    consent: bool,
+) -> Result<device::SettingsView> {
+    if provider == device::Provider::Synapse && !consent && !device.get()?.hosted_consent {
+        return Err(Error::new(
+            "hosted_consent",
+            "Read and accept the Synapse AI data notice first.",
+        ));
+    }
+    ai.cancel_running();
+    device.update(|c| {
+        c.provider = provider;
+        if provider == device::Provider::Synapse {
+            c.hosted_consent = true;
+        }
+        Ok(())
+    })?;
+    Ok(device::view(&device))
+}
+#[tauri::command]
+pub async fn enroll_synapse_ai(
+    device: State<'_, Device>,
+    invitation: String,
+    consent: bool,
+) -> Result<device::SettingsView> {
+    crate::hosted::enroll(&device, invitation, consent).await?;
+    Ok(device::view(&device))
+}
+#[tauri::command]
+pub async fn synapse_ai_status(device: State<'_, Device>) -> Result<serde_json::Value> {
+    crate::hosted::status(&device).await
+}
+#[tauri::command]
+pub async fn forget_synapse_ai(
+    device: State<'_, Device>,
+    ai: State<'_, AiState>,
+    local_only: bool,
+) -> Result<device::SettingsView> {
+    ai.cancel_running();
+    if local_only {
+        crate::hosted::forget_local(&device)?;
+    } else {
+        crate::hosted::forget(&device).await?;
+    }
+    Ok(device::view(&device))
+}
+
+#[tauri::command]
 pub fn device_settings(device: State<'_, Device>) -> device::SettingsView {
     device::view(&device)
 }
