@@ -1,5 +1,79 @@
 # Synapse validation
 
+## 0.8.1 — 17 November 2026
+
+Installed Synapse **0.8.1** fixes the native show/readiness failure and has actual cold-launch, tray-launch and operating-system Alt-Tab recordings. **Native acceptance remains incomplete:** input during either effect, a deliberately sub-500 ms focus bounce and rapid qualified cycles inside the 1500 ms cooldown have browser coverage but have not passed precisely timed native tests. Ordinary native returns, native dialogs and actual CodeMirror preservation passed. This is a local verification and repair pass; nothing was published.
+
+Final application source: **`54156ce8fe0914710d64ddc35fac77ac25a50a6d`**, on `codex/native-swarm-acceptance`. The starting source was `a8b95ec070ada730fa8817d1232b4bfe24ac4f51` / 0.8.0. The subsequent validation-document commit does not change the installed application. Package versions were updated consistently without dependency changes.
+
+| Check | Result |
+| --- | --- |
+| TypeScript typecheck and ESLint | Passed; ESLint also rerun after the final capture-helper edits |
+| Frontend tests | 78 passed |
+| Rust tests | 47 passed; one explicit live-provider test ignored |
+| Rustfmt and Clippy, all targets, warnings denied | Passed |
+| Browser lifecycle checks | 58 passed, including native show without either focus event and show without actual focus |
+| Production build | Passed; unsigned x64 NSIS package, existing public AI origin preserved |
+| Installed executable and three notice files | Match extracted final installer payload byte-for-byte |
+| Native cold/tray/welcome, ordinary returns, dialogs and CodeMirror | Passed on that exact installed 0.8.1 executable |
+| Precisely timed native interruption/bounce/cooldown cases | Incomplete; details below |
+
+### Native failure and repair
+
+The hidden WebView could already report DOM focus. Showing the window then produced neither a DOM focus event nor the expected Tauri focus event, leaving the preparation gate pending even after actual native focus/visibility became true. The prior DOM-event reconciliation alone could not recover that ordering. Failure evidence was retained before the repair.
+
+The native show path now emits `synapse-window-shown`. That notification wakes the bounded preparation gate and requests an authoritative native focus reconciliation; it does not fabricate focus or consume the launch claim. Rust continues to require actual visibility and focus before granting its one-use process claim. Unit and browser regressions cover both focused and unfocused show notifications. The final installed tray and cold launches passed without controller calls or synthetic focus events.
+
+An additional recording-harness issue was corrected: native CDP connections now use `noDefaults: true`, preventing Playwright's default focus emulation from contaminating native focus observations. Native UI input and Alt-Tab used the approved Windows Computer Use interface with a verified blank Notepad tab. CDP supplied passive instrumentation and compositor capture; OS-motion/DPI emulation and exact preference restoration are separately identified below.
+
+### Installed behaviour
+
+| Native case | Measured result |
+| --- | --- |
+| New normal visible process, populated vault | Startup **3502.1 ms**; nine agents, 16 UI targets, six actual nodes, three edges; preparation 74.7 ms |
+| New hidden tray process, then first foreground | No startup while hidden; first eligible presentation **3504.9 ms**, same populated sample; preparation 36.7 ms |
+| New process with no selected vault | Welcome startup **1479.8 ms**, two agents and three eligible targets |
+| Frontend reload in an already presented process | `already-presented`; no full startup replay |
+| Recorded genuine Alt-Tab return | Exactly one effect, **283.9 ms** |
+| Alt-Tab with a focused, unsaved CodeMirror note | Exactly one effect, **285.2 ms** |
+| Alt-Tab after native dialog checks | Exactly one effect, **283.9 ms**, proving suppression released |
+| Empty graph, collapsed sidebar, startup disabled and return enabled | Exactly one return, **286.2 ms**; viewport/DPR emulated as identified below |
+
+Successful populated startups completed below the 3800 ms deadline, with no remaining preparation gate, concealed content, overlays or startup RAF/timer. No initial startup/return overlap or new AudioContext was observed. Intermediate and final decoded frames showed construction matching the real UI/graph and a clean handover, without a completed-interface-then-hide flash. The cold recording was armed **151.8 ms before** the startup mark. The welcome capture began about 7 ms after its mark, so it supplies native state/timing evidence rather than a complete first-frame welcome recording.
+
+The real editor test inserted a distinctive unsaved edit, selected the range between positions 69 and 103 and scrolled to **1183 px**. After actual Alt-Tab, the complete unsaved document, selection, scroll, focus, Edit mode, graph scope, zoom, drawer geometry and graph Canvas hash were unchanged. Forty-eight active return-frame samples showed zero cursors, zero concealed targets and no gate. A subsequent real `Q` input replaced the selection exactly once. That character check occurred after the effect; it does not substitute for input during the 280 ms effect. Only the disposable note was later saved.
+
+Real native folder-picker cancellation, successful selection of the disposable vault and export/save cancellation all accepted normal input and added zero return effects. Suppression also held through observed delayed focus restoration. The later genuine Alt-Tab return passed, with 47 active samples showing no cursors or hidden content. Injected dialog errors remain covered by the browser suite.
+
+Reduced motion skipped both native startup and native Alt-Tab returns. The startup and return toggles independently disabled their effects; return still ran when startup alone was disabled. Follow Windows respected reduced/no-preference media emulation, and explicit Full overrode emulated reduction. Actual Windows motion settings were not changed. Native layouts included 1440×900, a resized 1000×900 view with the real editor drawer, and a maximized 1920×1009 empty graph with collapsed navigation, all at DPR 1. A separate **emulated** 1000×700 / DPR 1.5 view also passed its return check. Physical monitor/DPI switching is not claimed.
+
+### Recordings and evidence
+
+All final captures use the installed 0.8.1 executable and synthetic content. MP4 encoding preserves original compositor timestamps within **0.5 ms**, with no interpolation or added soundtrack, and includes a short final hold. The MP4 durations are 4.33 s for cold startup, 4.34 s for tray startup and 1.12 s for return. GIFs are normal-speed 25 fps review copies and loop only for review. Both formats decoded successfully; intermediate construction/effect frames and final handovers were visually inspected.
+
+The session began on 0.8.0, so its private evidence directory retains that name: **`.local/native-acceptance-0.8.0/`**. Final report version fields and these media names identify the tested binary correctly:
+
+- `Synapse-0.8.1-native-cold-startup.{mp4,gif}` — actual new visible process, capture before animation start.
+- `Synapse-0.8.1-native-tray-first-foreground.{mp4,gif}` — actual new hidden process, then native show.
+- `Synapse-0.8.1-native-alt-tab-return.{mp4,gif}` — actual operating-system window switch and native focus transition.
+
+Underlying timestamps, frames, native events and marks are in `cold-final/report.json`, `tray-final/report.json` and `return-final/report.json`. The original return recorder reached its rAF sample cap before the final cycle; its compositor frames, focus events and performance marks still cover the recorded effect. Independent editor/post-dialog traces provide the active-frame cursor/visibility checks above. The helper now keeps a bounded recent history to avoid losing late evidence.
+
+`acceptance-report.json` verifies 19 case groups and explicitly records `acceptanceComplete: false`. Supporting files include `preview-media-validation.json`, `package-verification.json`, `editor-return-*`, `folder-cancel-close-*`, `folder-success-*`, `export-cancel-*`, `post-dialog-return-*`, preference/layout reports and restoration reports. The final 58-case browser report is `.local/swarm-0.8.1/browser-report.json`; the earlier version-hardcoded helper also wrote this run over `.local/swarm-0.8.0/browser-report.json`, so that old path no longer contains the historical 56-case run. All local captures and private backups remain ignored by Git. Reproduction instructions are in [STARTUP_AUDIO.md](docs/STARTUP_AUDIO.md).
+
+### Restoration and remaining limits
+
+The app has no supported isolated test profile. Before testing, the owner's device file, selected-vault record and exact preference string were backed up privately. Synapse was originally closed, with no owner editor session to preserve. Tests selected a disposable synthetic vault and did not invoke a provider or modify hosted funding/Calendar configuration.
+
+The original device and selected-vault files were restored **byte-for-byte**. The exact original localStorage preference string was restored and verified: schema v1, **Full motion, sound enabled, volume 0.69**, without adding the previously absent animation-toggle fields. Provider selection and consent were preserved. The test process and debugging port 9222 are closed; temporary emulation/capture sessions are closed. Only the disposable Notepad tab was removed, its restored original tabs remained unmodified, and Notepad was closed again. Restoration is recorded at `2026-11-17T08:39:12.340Z`.
+
+The remaining native cases are input during startup, input during return, an intentional away/back cycle shorter than 500 ms, and repeated qualified cycles within the 1500 ms cooldown. The native automation observation/action round trips could not reliably land those gestures inside their timing windows. An attempted real Tab interruption arrived after startup completed and is explicitly **not** counted as a pass. These cases retain automated browser coverage but require a future suitably timed native run before full native acceptance can be declared. No Computer Use policy stop occurred in this pass. Windows 10 and physical DPI changes are also unverified; the tested host is Windows 11 Pro 10.0.26300.
+
+Installer: `src-tauri/target/release/bundle/nsis/Synapse_0.8.1_x64-setup.exe` (5,979,260 bytes, unsigned).
+SHA-256: `97b2cd6dffe2798ab78cea8e854fd5adff398c8702dc4b5cb41fc24f19c1afbc`.
+Installed executable SHA-256: `4011d88563058c97eb5a9d3ceabeed224ba5080cf219cb3cd490506a48f5a9b5`.
+The installed GPL v3 licence, copyright notice and third-party notices match the final installer payload.
+
 ## 0.8.0 — 17 November 2026
 
 Swarm Rebuild and the separate foreground-return effect are implemented, built and installed locally. **Native recording acceptance remains incomplete.** The supplied 0.8.0 GIF/MP4 previews are browser fixtures using the production controllers and GraphScene; they are not a new native process or a genuine Alt-Tab recording. No GitHub release was published.
