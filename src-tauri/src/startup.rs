@@ -1,6 +1,17 @@
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+// Showing a hidden WebView2 window need not change its already-focused DOM or
+// produce a window focus event. Notify readiness explicitly, without claiming
+// that Windows granted focus. The frontend still queries native focus/visibility.
+pub fn show(window: &tauri::WebviewWindow) -> tauri::Result<()> {
+    use tauri::Emitter;
+    window.show()?;
+    let _ = window.unminimize();
+    let _ = window.set_focus();
+    window.emit("synapse-window-shown", ())
+}
+
 pub struct Launch {
     id: String,
     consumed: AtomicBool,

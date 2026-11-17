@@ -72,6 +72,16 @@ export class StartupController {
   get settled() {
     return this.done;
   }
+  shown() {
+    // WebView2 can retain DOM focus while its native window is hidden. A show
+    // notification wakes the bounded gate; only the native claim grants motion.
+    ++this.visibilityRevision;
+    this.visible = true;
+    this.resume();
+    this.arm();
+    this.requestClaim();
+    this.wake();
+  }
   foreground(value: boolean) {
     ++this.visibilityRevision;
     this.nativeFocused = value;
@@ -114,12 +124,7 @@ export class StartupController {
     on(window, "focus", () => {
       // A native window event can be absent on WebView2. DOM focus only wakes
       // preparation; the Rust claim still decides whether we may animate.
-      ++this.visibilityRevision;
-      this.visible = true;
-      this.resume();
-      this.arm();
-      this.requestClaim();
-      this.wake();
+      this.shown();
     });
     on(window, "blur", () => {
       if (this.started !== null) this.finish("background");

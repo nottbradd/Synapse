@@ -2,9 +2,10 @@
 // Native process claims, Alt-Tab and installed recordings are checked separately.
 import { chromium } from "@playwright/test";
 import { createServer } from "vite";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
 import assert from "node:assert/strict";
-const out = ".local/swarm-0.8.0";
+const { version } = JSON.parse(await readFile("package.json", "utf8"));
+const out = `.local/swarm-${version}`;
 await mkdir(out, { recursive: true });
 const server = await createServer({
   server: { host: "127.0.0.1", port: 1431, strictPort: true },
@@ -49,6 +50,8 @@ const startupCases = [
   "hidden-start",
   "hidden-dom-focus",
   "hidden-stale-claim",
+  "hidden-native-show",
+  "hidden-show-unfocused",
   "once",
   "storage-failure",
   "error",
@@ -241,8 +244,12 @@ try {
       assert.equal(await page.evaluate(() => window.qa.claims), 0);
       await page.evaluate((name) => {
         const q = window.qa;
-        q.foreground = q.visible = true;
-        if (name !== "hidden-start") window.dispatchEvent(new Event("focus"));
+        q.visible = true;
+        q.foreground = name !== "hidden-show-unfocused";
+        if (["hidden-native-show", "hidden-show-unfocused"].includes(name))
+          q.controller.shown();
+        else if (name !== "hidden-start")
+          window.dispatchEvent(new Event("focus"));
         else {
           document.dispatchEvent(new Event("visibilitychange"));
           q.controller.foreground(true);
@@ -443,6 +450,7 @@ try {
         "slow-fonts",
         "late-claim",
         "late-attach",
+        "hidden-show-unfocused",
         "error",
       ].includes(name);
       if (name === "late-attach")
@@ -644,6 +652,7 @@ try {
           "hidden-start",
           "hidden-dom-focus",
           "hidden-stale-claim",
+          "hidden-native-show",
           "slow-restore",
           "dense",
           "scale150",

@@ -1,5 +1,6 @@
 interface FocusWindow {
   isFocused(): Promise<boolean>;
+  listen(event: string, handler: () => void): Promise<() => void>;
   onFocusChanged(
     handler: (event: { payload: boolean }) => void,
   ): Promise<() => void>;
@@ -12,6 +13,7 @@ export function attachNativeFocus(
   notify: (focused: boolean) => void,
   dom: EventTarget = window,
   visibility: EventTarget = document,
+  shown: () => void = () => {},
 ) {
   let alive = true;
   let revision = 0;
@@ -37,6 +39,11 @@ export function attachNativeFocus(
     ++revision;
     publish(payload);
   });
+  const unlistenShown = nativeWindow.listen("synapse-window-shown", () => {
+    if (!alive) return;
+    shown();
+    reconcile();
+  });
   void unlisten.then(reconcile, reconcile);
   dom.addEventListener("focus", reconcile);
   dom.addEventListener("blur", reconcile);
@@ -49,6 +56,10 @@ export function attachNativeFocus(
     dom.removeEventListener("blur", reconcile);
     visibility.removeEventListener("visibilitychange", reconcile);
     void unlisten.then(
+      (remove) => remove(),
+      () => {},
+    );
+    void unlistenShown.then(
       (remove) => remove(),
       () => {},
     );

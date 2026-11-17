@@ -4,7 +4,7 @@
 // caller backs up/restores owner settings; this script never calls a provider.
 import { chromium } from "@playwright/test";
 import { spawn } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
 import assert from "node:assert/strict";
 const name = process.argv[2] ?? "restored";
@@ -16,7 +16,8 @@ const executable = path.join(
   "Synapse",
   "synapse.exe",
 );
-const out = path.resolve(`.local/release-0.8.0/startup-${name}`);
+const { version } = JSON.parse(await readFile("package.json", "utf8"));
+const out = path.resolve(`.local/release-${version}/startup-${name}`);
 await mkdir(out, { recursive: true });
 if (!existing)
   spawn(executable, visible ? [] : ["--background"], {
@@ -38,7 +39,10 @@ for (let i = 0; i < 120; i++) {
   await new Promise((resolve) => setTimeout(resolve, 100));
 }
 assert.ok(ready, "Installed WebView debug connection");
-const browser = await chromium.connectOverCDP("http://127.0.0.1:9222");
+// Default CDP attachment emulates focus and invalidates native acceptance.
+const browser = await chromium.connectOverCDP("http://127.0.0.1:9222", {
+  noDefaults: true,
+});
 const context = browser.contexts()[0],
   page = context.pages()[0];
 await page.waitForFunction(() => !!window.__TAURI_INTERNALS__?.invoke);
@@ -51,7 +55,7 @@ await page.waitForSelector(name === "welcome" ? ".welcome" : ".sidebar", {
   state: "attached",
 });
 assert.equal(page.url(), "http://tauri.localhost/");
-assert.equal(await invoke("plugin:app|version"), "0.8.0");
+assert.equal(await invoke("plugin:app|version"), version);
 if (!existing && !visible)
   assert.equal(
     await invoke("plugin:window|is_visible", { label: "main" }),

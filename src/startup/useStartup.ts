@@ -12,6 +12,7 @@ export function foreground(value: boolean) {
   startup.foreground(value);
   foregroundReturn.foreground(value);
 }
+export const nativeWindowShown = () => startup.shown();
 export function useStartup(ready: boolean, reduced: boolean, blocked: boolean) {
   const root = useRef<HTMLElement>(null),
     { startupAnimation, returnAnimation } = usePreferences();

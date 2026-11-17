@@ -9,6 +9,7 @@ it("recovers missed native focus events and coalesces native/DOM notifications",
   let nativeEvent: (event: { payload: boolean }) => void = () => {};
   const remove = vi.fn();
   const api = {
+    listen: async () => () => {},
     isFocused: vi.fn(async () => focused),
     onFocusChanged: async (callback: typeof nativeEvent) => {
       nativeEvent = callback;
@@ -47,6 +48,7 @@ it("ignores stale native queries and results after unmount", async () => {
   let nativeEvent: (event: { payload: boolean }) => void = () => {};
   const detach = attachNativeFocus(
     {
+      listen: async () => () => {},
       isFocused: () => new Promise<boolean>((resolve) => pending.push(resolve)),
       onFocusChanged: async (callback) => {
         nativeEvent = callback;
@@ -67,4 +69,43 @@ it("ignores stale native queries and results after unmount", async () => {
   pending.splice(0).forEach((resolve) => resolve(false));
   await Promise.resolve();
   expect(notify.mock.calls).toEqual([[true]]);
+});
+
+it("rechecks a shown window without DOM/native focus events and never invents focus", async () => {
+  const dom = new EventTarget(),
+    visibility = new EventTarget(),
+    notify = vi.fn(),
+    shown = vi.fn(),
+    remove = vi.fn();
+  let focused = false,
+    presented = () => {};
+  const detach = attachNativeFocus(
+    {
+      isFocused: async () => focused,
+      onFocusChanged: async () => () => {},
+      listen: async (event, handler) => {
+        expect(event).toBe("synapse-window-shown");
+        presented = handler;
+        return remove;
+      },
+    },
+    notify,
+    dom,
+    visibility,
+    shown,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  presented();
+  await Promise.resolve();
+  expect(notify.mock.calls).toEqual([[false]]);
+  focused = true;
+  presented();
+  await Promise.resolve();
+  expect(notify.mock.calls).toEqual([[false], [true]]);
+  expect(shown).toHaveBeenCalledTimes(2);
+  detach();
+  await Promise.resolve();
+  presented();
+  expect(shown).toHaveBeenCalledTimes(2);
+  expect(remove).toHaveBeenCalledOnce();
 });

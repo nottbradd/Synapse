@@ -1,13 +1,16 @@
 // Observe one genuine native focus cycle. This script never synthesizes focus
 // events; use Alt-Tab (human or Windows input automation) after it is armed.
 import { chromium } from "@playwright/test";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import assert from "node:assert/strict";
-const out = path.resolve(".local/release-0.8.0/return");
+const { version } = JSON.parse(await readFile("package.json", "utf8"));
+const out = path.resolve(`.local/release-${version}/return`);
 await mkdir(out, { recursive: true });
-const browser = await chromium.connectOverCDP("http://127.0.0.1:9222"),
+const browser = await chromium.connectOverCDP("http://127.0.0.1:9222", {
+    noDefaults: true,
+  }),
   context = browser.contexts()[0],
   page = context.pages()[0];
 const invoke = (command, args = {}) =>
@@ -15,7 +18,7 @@ const invoke = (command, args = {}) =>
     ({ command, args }) => window.__TAURI_INTERNALS__.invoke(command, args),
     { command, args },
   );
-assert.equal(await invoke("plugin:app|version"), "0.8.0");
+assert.equal(await invoke("plugin:app|version"), version);
 assert.equal(page.url(), "http://tauri.localhost/");
 await page.waitForFunction(
   () => document.hasFocus() && !document.hidden,
@@ -136,7 +139,7 @@ const measure = result.measures.at(-1);
 const report = {
   ...result,
   native: true,
-  version: "0.8.0",
+  version,
   frames,
   before,
   after,

@@ -31,9 +31,7 @@ pub fn run() {
                 return;
             }
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.unminimize();
-                let _ = window.set_focus();
+                let _ = startup::show(&window);
             }
         }))
         .plugin(tauri_plugin_dialog::init())
@@ -66,9 +64,7 @@ pub fn run() {
                 .menu(&menu)
                 .on_menu_event(|app, event| {
                     if let Some(w) = app.get_webview_window("main") {
-                        let _ = w.show();
-                        let _ = w.unminimize();
-                        let _ = w.set_focus();
+                        let _ = startup::show(&w);
                     }
                     if event.id.as_ref() == "quit" {
                         let _ = app.emit("synapse-quit-requested", ());
@@ -83,7 +79,7 @@ pub fn run() {
                     .is_ok_and(|c| c.background);
             if !background_start {
                 if let Some(window) = app.get_webview_window("main") {
-                    window.show()?;
+                    startup::show(&window)?;
                 }
             }
             Ok(())
