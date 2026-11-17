@@ -10,12 +10,13 @@ import assert from "node:assert/strict";
 const name = process.argv[2] ?? "restored";
 const existing = process.argv.includes("--existing");
 const visible = process.argv.includes("--visible");
+const waitShow = process.argv.includes("--wait-show");
 const executable = path.join(
   process.env.LOCALAPPDATA,
   "Synapse",
   "synapse.exe",
 );
-const out = path.resolve(`.local/release-0.7.0/startup-${name}`);
+const out = path.resolve(`.local/release-0.8.0/startup-${name}`);
 await mkdir(out, { recursive: true });
 if (!existing)
   spawn(executable, visible ? [] : ["--background"], {
@@ -50,7 +51,7 @@ await page.waitForSelector(name === "welcome" ? ".welcome" : ".sidebar", {
   state: "attached",
 });
 assert.equal(page.url(), "http://tauri.localhost/");
-assert.equal(await invoke("plugin:app|version"), "0.7.0");
+assert.equal(await invoke("plugin:app|version"), "0.8.0");
 if (!existing && !visible)
   assert.equal(
     await invoke("plugin:window|is_visible", { label: "main" }),
@@ -90,11 +91,14 @@ await cdp.send("Page.startScreencast", {
 });
 const requested = Date.now() / 1000;
 // The existing single-instance handler shows/focuses the hidden native window.
-if (!existing && !visible)
+if (!existing && !visible && !waitShow)
   spawn(executable, [], { detached: true, stdio: "ignore" }).unref();
 console.log("Recording armed; waiting for genuine native foreground.");
 await page.waitForFunction(
-  () => performance.getEntriesByName("synapse.startup").length > 0,
+  () =>
+    performance
+      .getEntriesByType("mark")
+      .some((e) => e.name.startsWith("synapse.startup:finish:")),
   undefined,
   { timeout: 600000 },
 );
@@ -138,8 +142,8 @@ assert.ok(
   JSON.stringify(result.marks),
 );
 assert.ok(
-  result.measures.at(-1).duration >= 900 &&
-    result.measures.at(-1).duration <= 1200,
+  result.measures.at(-1).duration >= (name === "welcome" ? 500 : 3200) &&
+    result.measures.at(-1).duration <= 3800,
 );
 assert.equal(result.overlay, 0);
 assert.equal(result.hidden, 0);
@@ -196,7 +200,7 @@ console.log(
       name,
       frames: frames.length,
       duration: result.measures.at(-1).duration,
-      targets: result.marks.find((m) => m.name.endsWith("snapshot"))?.detail,
+      presentation: result.marks.find((m) => m.name.endsWith(":start"))?.detail,
       silent: result.audioContexts === 0,
       reloadedWithoutReplay: true,
       out,

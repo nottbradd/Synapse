@@ -1,51 +1,92 @@
-// Browser lifecycle tests of the production controller and CSS, including real
-// event propagation. Native process/installed startup is verified separately.
+// Browser fixtures mount the production Graph/GraphScene and both controllers.
+// Native process claims, Alt-Tab and installed recordings are checked separately.
 import { chromium } from "@playwright/test";
 import { createServer } from "vite";
 import { mkdir, writeFile } from "node:fs/promises";
 import assert from "node:assert/strict";
-const out = ".local/startup-0.7.0";
+const out = ".local/swarm-0.8.0";
 await mkdir(out, { recursive: true });
 const server = await createServer({
   server: { host: "127.0.0.1", port: 1431, strictPort: true },
 });
 await server.listen();
 const browser = await chromium.launch({ channel: "msedge", headless: true });
-const report = [];
-const allCases = [
+const results = [];
+const startupCases = [
   "full",
-  "system-full",
+  "welcome",
+  "collapsed",
+  "small",
+  "large",
+  "scale150",
+  "scale200",
+  "drawer",
+  "empty",
+  "dense",
   "reduced",
   "system-reduced",
+  "system-full",
   "disabled",
   "slow-restore",
   "slow-fonts",
+  "late-claim",
+  "late-attach",
   "pointer",
   "keyboard",
   "touch",
   "wheel",
+  "scroll",
+  "composition",
   "focus",
   "resize",
   "dpr",
   "late-fonts",
   "layout",
   "modal",
-  "editor",
   "unmount",
   "strict",
   "background",
   "hidden-start",
-  "native-focus",
+  "hidden-dom-focus",
+  "hidden-stale-claim",
   "once",
   "storage-failure",
   "error",
   "css-fallback",
 ];
-const cases = process.argv[2] ? [process.argv[2]] : allCases;
+const returnCases = [
+  "return",
+  "return-bounce",
+  "return-chatter",
+  "return-cooldown",
+  "return-dialog",
+  "return-dialog-error",
+  "return-editor",
+  "return-pointer",
+  "return-keyboard",
+  "return-composition",
+  "return-reduced",
+  "return-disabled",
+  "return-modal",
+  "return-empty",
+  "return-resize",
+  "return-initial",
+];
+const cases = process.argv[2]
+  ? [process.argv[2]]
+  : [...startupCases, ...returnCases];
 try {
   for (const name of cases) {
+    const returning = name.startsWith("return");
     const context = await browser.newContext({
-      viewport: { width: 1200, height: 800 },
+      viewport:
+        name === "small"
+          ? { width: 900, height: 600 }
+          : name === "large"
+            ? { width: 1920, height: 1080 }
+            : { width: 1440, height: 900 },
+      deviceScaleFactor:
+        name === "scale150" ? 1.5 : name === "scale200" ? 2 : 1,
       reducedMotion: name === "system-full" ? "no-preference" : "reduce",
     });
     const page = await context.newPage(),
@@ -54,328 +95,629 @@ try {
     await page.route("**/swarm-check", (r) =>
       r.fulfill({
         contentType: "text/html",
-        body: `<!doctype html><html><head><style>
-      body {margin:0;background:#070b10;color:#edf1f4;font:14px Arial} main {padding:24px;display:grid;grid-template-columns:240px 1fr;gap:20px}
-      [data-swarm] {box-sizing:border-box;min-height:34px} button {padding:12px;background:#17212b;color:#edf1f4;border:1px solid #354553}
-      .brand {font-size:22px} .region {height:100px;border:1px solid #354553} .offscreen {position:absolute;left:-400px}
-      </style><script type="module">import RefreshRuntime from '/@react-refresh';RefreshRuntime.injectIntoGlobalHook(window);window.$RefreshReg$=()=>{};window.$RefreshSig$=()=>t=>t;window.__vite_plugin_react_preamble_installed__=true;</script></head><body>
-      <main class="app" data-motion="full"><h1 class="brand" data-swarm="text">Synapse 👩🏽‍💻</h1><button id="first" data-swarm="box">First action</button>
-      ${Array.from({ length: 10 }, (_, i) => `<section class="region" data-swarm="box">Region ${i}<span data-swarm="text">Nested target excluded</span></section>`).join("")}
-      <div hidden data-swarm="box">Hidden</div><div class="offscreen" data-swarm="box">Offscreen</div><div data-swarm="box" data-swarm-sensitive>Private</div>
-      <input aria-label="Editor"><input type="password" data-swarm="box"></main></body></html>`,
+        body: `<!doctype html><html><head><script type="module">import RefreshRuntime from '/@react-refresh';RefreshRuntime.injectIntoGlobalHook(window);window.$RefreshReg$=()=>{};window.$RefreshSig$=()=>t=>t;window.__vite_plugin_react_preamble_installed__=true;</script></head><body></body></html>`,
       }),
     );
     await page.goto("http://127.0.0.1:1431/swarm-check");
-    await page.evaluate(async (name) => {
-      await import("/src/startup/startup.css");
-      const { StartupController } = await import("/src/startup/controller.ts");
-      const { resolveReducedMotion } =
-        await import("/src/interaction/preferences.ts");
-      window.test = {
-        claims: 0,
-        action: 0,
-        errors: [],
-        reads: 0,
-        audio: 0,
-        ids: new Set(),
-        nativeForeground: name !== "hidden-start",
-      };
-      const t = window.test;
-      const OriginalAudio = window.AudioContext;
-      window.AudioContext = class extends OriginalAudio {
-        constructor(...args) {
-          super(...args);
-          t.audio++;
-        }
-      };
-      const rect = Element.prototype.getBoundingClientRect;
-      Element.prototype.getBoundingClientRect = function () {
-        t.reads++;
-        return rect.call(this);
-      };
-      const raf = window.requestAnimationFrame,
-        cancel = window.cancelAnimationFrame;
-      window.requestAnimationFrame = (fn) => {
-        const id = raf((now) => {
-          t.ids.delete(id);
-          fn(now);
-        });
-        t.ids.add(id);
-        return id;
-      };
-      window.cancelAnimationFrame = (id) => {
-        t.ids.delete(id);
-        cancel(id);
-      };
-      const motion =
-        name === "reduced"
-          ? "reduced"
-          : name.startsWith("system-")
-            ? "system"
-            : "full";
-      t.state = {
-        ready: name !== "slow-restore",
-        reduced: resolveReducedMotion(
-          motion,
-          matchMedia("(prefers-reduced-motion: reduce)").matches,
-        ),
-        enabled: name !== "disabled",
-        blocked: false,
-      };
-      t.root = document.querySelector("main");
-      t.root.dataset.motion = t.state.reduced ? "reduced" : "full";
-      if (name === "slow-fonts")
-        Object.defineProperty(document.fonts, "status", {
-          configurable: true,
-          get: () => "loading",
-        });
-      if (name === "storage-failure")
-        Object.defineProperty(window, "sessionStorage", {
-          get() {
-            throw Error("Unavailable storage");
-          },
-        });
-      if (name === "editor") document.querySelector("input").focus();
-      if (name === "error") {
-        const attr = Element.prototype.setAttribute;
-        let count = 0;
-        Element.prototype.setAttribute = function (k, v) {
-          if (k === "data-swarm-hidden" && ++count === 2)
-            throw Error("Deliberate animation failure");
-          return attr.call(this, k, v);
-        };
-      }
-      t.claim = async () => {
-        if (!t.nativeForeground)
-          return { id: name, foreground: false, granted: false };
-        return { id: name, foreground: true, granted: ++t.claims === 1 };
-      };
-      t.controller = new StartupController(t.claim);
-      if (name === "native-focus") t.controller.foreground(false);
-      if (name === "strict") {
-        const { mountStrict } = await import("/scripts/startup-fixture.tsx");
-        t.detach = mountStrict(t.controller, t.root, t.state);
-      } else {
-        t.detach = t.controller.attach(t.root);
-        t.controller.update(t.state);
-      }
-      const action = () => {
-        t.action++;
-        t.atAction = {
-          hidden: document.querySelectorAll('[data-swarm-hidden="true"]')
-            .length,
-          overlay: !!document.querySelector(".swarm-overlay"),
-        };
-      };
-      document.getElementById("first").addEventListener("click", action);
-      document.getElementById("first").addEventListener("keydown", action);
-    }, name);
-    if (name === "hidden-start") {
-      await page.waitForTimeout(300);
-      assert.deepEqual(
-        await page.evaluate(() => ({
-          claims: window.test.claims,
-          overlay: !!document.querySelector(".swarm-overlay"),
-          audio: window.test.audio,
-        })),
-        { claims: 0, overlay: false, audio: 0 },
-      );
-      await page.evaluate(() => {
-        window.test.nativeForeground = true;
-        window.dispatchEvent(new Event("focus"));
-      });
-    }
-    if (name === "native-focus") {
-      await page.waitForTimeout(300);
-      assert.equal(await page.evaluate(() => window.test.claims), 0);
-      await page.evaluate(() => window.test.controller.foreground(true));
-    }
-    const skip = [
-      "reduced",
-      "system-reduced",
-      "disabled",
-      "slow-restore",
-      "slow-fonts",
-      "editor",
-      "error",
-    ].includes(name);
-    let atSnapshot;
-    if (!skip) {
-      await page
-        .waitForSelector(".swarm-overlay", { state: "attached", timeout: 4000 })
-        .catch(async (error) => {
-          console.log(
-            JSON.stringify({
-              name,
-              errors,
-              debug: await page.evaluate(() => ({
-                marks: performance.getEntriesByType("mark").map((e) => e.name),
-                controller: {
-                  done: window.test.controller.done,
-                  started: window.test.controller.started,
-                  root: !!window.test.controller.root,
-                  claiming: window.test.controller.claiming,
-                },
-                focus: document.hasFocus(),
-              })),
-            }),
-          );
-          throw error;
-        });
-      atSnapshot = await page.evaluate(() => ({
-        count: document.querySelectorAll('[data-swarm-hidden="true"]').length,
-        cursors: document.querySelectorAll(".swarm-cursor").length,
-        reads: window.test.reads,
-        pointerEvents: getComputedStyle(
-          document.querySelector(".swarm-overlay"),
-        ).pointerEvents,
-      }));
-      assert.ok(atSnapshot.count > 0 && atSnapshot.count <= 15);
-      assert.equal(atSnapshot.cursors, 6);
-      assert.equal(atSnapshot.pointerEvents, "none");
-      if (name === "full")
-        await page.screenshot({ path: `${out}/construction.png` });
-      if (name === "pointer")
-        await page.locator("#first").click({ force: true });
-      if (name === "keyboard")
-        await page.evaluate(() =>
-          document
-            .getElementById("first")
-            .dispatchEvent(
-              new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
-            ),
-        );
-      if (name === "touch")
-        await page.evaluate(() =>
-          window.dispatchEvent(new Event("touchstart")),
-        );
-      if (name === "wheel") await page.mouse.wheel(0, 50);
-      if (name === "focus") await page.locator("input:not([type])").focus();
-      if (name === "resize")
-        await page.setViewportSize({ width: 1100, height: 800 });
-      if (name === "dpr") {
-        const cdp = await context.newCDPSession(page);
-        await cdp.send("Emulation.setDeviceMetricsOverride", {
-          width: 1200,
-          height: 800,
-          deviceScaleFactor: 1.5,
-          mobile: false,
-        });
-      }
-      if (name === "late-fonts")
-        await page.evaluate(() =>
-          document.fonts.dispatchEvent(new Event("loading")),
-        );
-      if (name === "layout")
-        await page.evaluate(
-          () => (document.getElementById("first").style.height = "90px"),
-        );
-      if (name === "modal")
-        await page.evaluate(() => {
-          const dialog = document.createElement("div");
-          dialog.setAttribute("aria-modal", "true");
-          window.test.root.append(dialog);
-        });
-      if (name === "unmount") await page.evaluate(() => window.test.detach());
-      if (name === "background")
-        await page.evaluate(() => window.dispatchEvent(new Event("blur")));
-      if (name === "css-fallback") {
-        await page.evaluate(() => {
-          window.test.controller.release();
-        });
-        await page.waitForTimeout(1200);
-        assert.equal(
-          await page
-            .locator("#first")
-            .evaluate((el) => getComputedStyle(el).opacity),
-          "1",
-        );
-        assert.equal(
-          await page
-            .locator(".swarm-overlay")
-            .evaluate((el) => getComputedStyle(el).visibility),
-          "hidden",
-        );
-        await page.evaluate(() =>
-          window.test.controller.finish("css-recovery"),
-        );
-      }
-    }
-    await page.waitForFunction(
-      () => performance.getEntriesByName("synapse.startup").length > 0,
-    );
-    const result = await page.evaluate(() => ({
-      marks: performance
-        .getEntriesByType("mark")
-        .filter((e) => e.name.startsWith("synapse.startup"))
-        .map((e) => ({ name: e.name, at: e.startTime, detail: e.detail })),
-      duration: performance.getEntriesByName("synapse.startup").at(-1).duration,
-      hidden: document.querySelectorAll('[data-swarm-hidden="true"]').length,
-      overlay: !!document.querySelector(".swarm-overlay"),
-      pendingFrames: window.test.ids.size,
-      claims: window.test.claims,
-      audio: window.test.audio,
-      action: window.test.action,
-      atAction: window.test.atAction,
-      reads: window.test.reads,
-    }));
-    assert.equal(result.hidden, 0);
-    assert.equal(result.overlay, false);
-    assert.equal(result.pendingFrames, 0);
-    assert.equal(result.audio, 0);
-    if (name !== "css-fallback")
-      assert.ok(result.duration <= 1200, JSON.stringify(result));
-    if (
-      [
-        "full",
-        "system-full",
-        "strict",
-        "once",
-        "storage-failure",
-        "hidden-start",
-        "native-focus",
-      ].includes(name)
-    ) {
-      assert.ok(result.duration >= 900, JSON.stringify(result));
-      assert.ok(
-        result.marks.at(-1).name.endsWith("complete"),
-        JSON.stringify(result),
-      );
-    }
-    if (["pointer", "keyboard"].includes(name)) {
-      assert.equal(result.action, 1);
-      assert.deepEqual(result.atAction, { hidden: 0, overlay: false });
-    }
-    if (name === "error") assert.ok(result.marks.at(-1).name.endsWith("error"));
-    if (name === "once" || name === "storage-failure") {
-      await page.evaluate(async () => {
-        window.test.detach();
+    await page.evaluate(
+      async ({ name, returning }) => {
         const { StartupController } =
           await import("/src/startup/controller.ts");
-        window.test.second = new StartupController(window.test.claim);
-        window.test.second.attach(window.test.root);
-        window.test.second.update(window.test.state);
-      });
-      await page.waitForTimeout(250);
+        const { preferences, resolveReducedMotion } =
+          await import("/src/interaction/preferences.ts");
+        const { mountWorkspace } = await import("/scripts/startup-fixture.tsx");
+        const { graphPresentation } =
+          await import("/src/startup/presentation.ts");
+        await document.fonts.ready;
+        // Normal-motion cases require ready fonts. Explicitly load the faces
+        // before the ready workspace is mounted; fonts.ready alone does not
+        // request a face that has not yet been used by a rendered element.
+        await Promise.all([
+          document.fonts.load("400 24px Geist"),
+          document.fonts.load("650 18px Manrope"),
+        ]);
+        const motion =
+          name === "reduced" || name === "return-reduced"
+            ? "reduced"
+            : name.startsWith("system-")
+              ? "system"
+              : "full";
+        preferences.update({ motion });
+        const q = (window.qa = {
+          claims: 0,
+          audio: 0,
+          action: 0,
+          foreground: !name.startsWith("hidden-"),
+          visible: !name.startsWith("hidden-"),
+          samples: [],
+          name,
+        });
+        const Audio = window.AudioContext;
+        window.AudioContext = class extends Audio {
+          constructor(...args) {
+            super(...args);
+            q.audio++;
+          }
+        };
+        if (name === "slow-fonts")
+          Object.defineProperty(document.fonts, "status", {
+            configurable: true,
+            get: () => (q.fontsReady ? "loaded" : "loading"),
+          });
+        if (name === "storage-failure")
+          Object.defineProperty(window, "sessionStorage", {
+            get() {
+              throw Error("Storage unavailable");
+            },
+          });
+        if (name === "error") {
+          const original = Element.prototype.setAttribute;
+          let hits = 0;
+          Element.prototype.setAttribute = function (k, v) {
+            if (k === "data-swarm-hidden" && ++hits === 2)
+              throw Error("Induced failure");
+            return original.call(this, k, v);
+          };
+        }
+        if (name.startsWith("hidden-"))
+          Object.defineProperty(document, "hidden", {
+            configurable: true,
+            get: () => !q.visible,
+          });
+        q.claim = async () => {
+          if (name === "late-claim")
+            await new Promise((r) => setTimeout(r, 450));
+          const result = {
+            id: name,
+            foreground: q.foreground,
+            visible: q.visible,
+            granted: q.foreground && ++q.claims === 1,
+          };
+          if (name === "hidden-stale-claim" && !q.foreground)
+            await new Promise((resolve) => {
+              q.releaseHiddenClaim = resolve;
+            });
+          return result;
+        };
+        q.controller = new StartupController(q.claim);
+        q.state = {
+          ready: name !== "slow-restore",
+          enabled: !returning && name !== "disabled",
+          reduced: resolveReducedMotion(
+            motion,
+            matchMedia("(prefers-reduced-motion: reduce)").matches,
+          ),
+          blocked: false,
+        };
+        q.fixture = mountWorkspace(q.controller, q.state, {
+          strict: name === "strict",
+          collapsed: name === "collapsed",
+          welcome: name === "welcome",
+          empty: name === "empty" || name === "return-empty",
+          drawer: name === "drawer" || name === "return-editor",
+          dense: name === "dense",
+        });
+        q.graph = () => graphPresentation(document.querySelector("main"));
+        const action = (e) => {
+          if (e.target.closest?.("#first")) {
+            q.action++;
+            q.atAction = {
+              hidden: document.querySelectorAll('[data-swarm-hidden="true"]')
+                .length,
+              overlays: document.querySelectorAll(".swarm-overlay").length,
+            };
+          }
+        };
+        document.addEventListener("click", action);
+        document.addEventListener("keydown", action);
+        const sample = () => {
+          const el = document.querySelector(".brand,.welcome h1");
+          if (el)
+            q.samples.push({
+              at: performance.now(),
+              opacity: getComputedStyle(el).opacity,
+              phase: document.querySelector("main").dataset.swarmGate ?? "live",
+              overlay: !!document.querySelector(".swarm-startup"),
+            });
+          if (!q.controller.settled)
+            q.sampleFrame = requestAnimationFrame(sample);
+        };
+        q.sampleFrame = requestAnimationFrame(sample);
+      },
+      { name, returning },
+    );
+    if (name === "slow-restore") {
+      await page.waitForTimeout(650);
       assert.equal(await page.locator(".swarm-overlay").count(), 0);
       assert.equal(
-        await page.evaluate(
-          () => performance.getEntriesByName("synapse.startup:snapshot").length,
-        ),
-        1,
+        await page.locator("[role=status]").textContent(),
+        "Restoring your workspace…",
       );
+      await page.evaluate(() => window.qa.fixture.ready());
     }
-    assert.deepEqual(errors, []);
-    report.push({ name, atSnapshot, ...result });
-    console.log(
-      `${name}: ${result.marks.at(-1).name.split(":").at(-1)} ${result.duration.toFixed(1)}ms`,
-    );
+    if (name.startsWith("hidden-")) {
+      await page.waitForTimeout(4100);
+      assert.equal(await page.locator(".swarm-overlay").count(), 0);
+      assert.equal(await page.evaluate(() => window.qa.claims), 0);
+      await page.evaluate((name) => {
+        const q = window.qa;
+        q.foreground = q.visible = true;
+        if (name !== "hidden-start") window.dispatchEvent(new Event("focus"));
+        else {
+          document.dispatchEvent(new Event("visibilitychange"));
+          q.controller.foreground(true);
+        }
+        q.releaseHiddenClaim?.();
+      }, name);
+    }
+    if (returning) {
+      await page.waitForFunction(
+        () =>
+          window.qa.controller.settled &&
+          !!document.querySelector(".graph-controls"),
+      );
+      await page.waitForTimeout(500);
+      await page.evaluate(async (name) => {
+        const { ReturnController } = await import("/src/startup/return.ts"),
+          q = window.qa;
+        q.returns = new ReturnController(() => q.controller.settled, true);
+        q.returns.attach(document.querySelector("main"));
+        q.returns.update({
+          ready: true,
+          enabled: name !== "return-disabled",
+          reduced: name === "return-reduced",
+          blocked: name === "return-modal",
+        });
+        q.returns.foreground(true);
+        q.before = JSON.stringify(q.fixture.exploration.capture());
+        if (name === "return-editor") {
+          const e = document.querySelector("#draft");
+          e.focus();
+          e.setSelectionRange(4, 17);
+          e.scrollTop = 230;
+          q.editorBefore = {
+            value: e.value,
+            start: e.selectionStart,
+            end: e.selectionEnd,
+            scroll: e.scrollTop,
+          };
+        }
+      }, name);
+      if (name === "return-initial") await page.waitForTimeout(500);
+      else {
+        if (name.startsWith("return-dialog"))
+          await page.evaluate(async (name) => {
+            const { withNativeDialog } =
+              await import("/src/startup/suppression.ts");
+            window.qa.dialog = withNativeDialog(
+              () =>
+                new Promise((resolve, reject) => {
+                  window.qa.resolveDialog = () =>
+                    name.endsWith("error")
+                      ? reject(Error("Cancelled/error"))
+                      : resolve(null);
+                }),
+            ).catch(() => {});
+          }, name);
+        await page.evaluate(() => window.qa.returns.foreground(false));
+        await page.waitForTimeout(name === "return-bounce" ? 120 : 600);
+        if (name.startsWith("return-dialog")) {
+          await page.evaluate(() => window.qa.resolveDialog());
+          await page.waitForTimeout(180);
+        }
+        await page.evaluate(() => {
+          window.qa.returns.foreground(true);
+          window.dispatchEvent(new Event("focus"));
+          document.dispatchEvent(new Event("visibilitychange"));
+          window.qa.returns.foreground(true);
+        });
+        const suppressed = [
+          "return-bounce",
+          "return-dialog",
+          "return-dialog-error",
+          "return-reduced",
+          "return-disabled",
+          "return-modal",
+        ].includes(name);
+        if (!suppressed) {
+          await page.waitForSelector(".swarm-return", {
+            state: "attached",
+            timeout: 2000,
+          });
+          assert.equal(await page.locator(".swarm-cursor").count(), 0);
+          assert.equal(await page.locator("[data-swarm-hidden]").count(), 0);
+          if (name === "return")
+            await page.screenshot({ path: `${out}/return.png` });
+          if (name === "return-pointer")
+            await page.locator("#first").click({ force: true });
+          if (name === "return-keyboard")
+            await page
+              .locator("#first")
+              .dispatchEvent("keydown", { key: "Enter" });
+          if (name === "return-composition")
+            await page.evaluate(() =>
+              window.dispatchEvent(new Event("compositionstart")),
+            );
+          if (name === "return-resize")
+            await page.setViewportSize({ width: 1360, height: 900 });
+          if (name === "return-chatter")
+            await page.evaluate(() => {
+              window.qa.returns.foreground(true);
+              window.dispatchEvent(new Event("focus"));
+              document.dispatchEvent(new Event("visibilitychange"));
+            });
+        }
+        await page.waitForTimeout(480);
+        assert.equal(await page.locator(".swarm-return").count(), 0);
+        const count = await page.evaluate(
+          () => performance.getEntriesByName("synapse.return:start").length,
+        );
+        assert.equal(count, suppressed ? 0 : 1, name);
+        if (name === "return-cooldown") {
+          await page.evaluate(() => window.qa.returns.foreground(false));
+          await page.waitForTimeout(550);
+          await page.evaluate(() => window.qa.returns.foreground(true));
+          await page.waitForTimeout(450);
+          assert.equal(
+            await page.evaluate(
+              () => performance.getEntriesByName("synapse.return:start").length,
+            ),
+            1,
+          );
+        }
+        if (name.startsWith("return-dialog")) {
+          await page.waitForTimeout(1200);
+          await page.evaluate(() => window.qa.returns.foreground(false));
+          await page.waitForTimeout(550);
+          await page.evaluate(() => window.qa.returns.foreground(true));
+          await page.waitForTimeout(500);
+          assert.equal(
+            await page.evaluate(
+              () => performance.getEntriesByName("synapse.return:start").length,
+            ),
+            1,
+            "Suppression must expire",
+          );
+        }
+      }
+      const result = await page.evaluate(() => {
+        const q = window.qa,
+          e = document.querySelector("#draft");
+        return {
+          name: q.name,
+          measures: performance
+            .getEntriesByName("synapse.return")
+            .map((x) => x.duration),
+          marks: performance
+            .getEntriesByType("mark")
+            .filter((x) => x.name.startsWith("synapse.return"))
+            .map((x) => ({ name: x.name, detail: x.detail })),
+          audio: q.audio,
+          raf: q.returns.raf,
+          stable: q.returns.stable,
+          timer: q.returns.deadline,
+          before: q.before,
+          after: JSON.stringify(q.fixture.exploration.capture()),
+          action: q.action,
+          atAction: q.atAction,
+          editorBefore: q.editorBefore,
+          editorAfter: e
+            ? {
+                value: e.value,
+                start: e.selectionStart,
+                end: e.selectionEnd,
+                scroll: e.scrollTop,
+                focused: document.activeElement === e,
+              }
+            : undefined,
+        };
+      });
+      assert.equal(result.audio, 0);
+      assert.equal(result.raf + result.stable + result.timer, 0);
+      assert.ok(
+        result.measures.every((d) => d <= 400),
+        JSON.stringify(result),
+      );
+      if (name !== "return-resize")
+        assert.equal(
+          result.before,
+          result.after,
+          "Return changes no graph state",
+        );
+      if (name === "return-editor") {
+        assert.equal(result.editorAfter.focused, true);
+        const after = { ...result.editorAfter };
+        delete after.focused;
+        assert.deepEqual(after, result.editorBefore);
+      }
+      if (["return-pointer", "return-keyboard"].includes(name)) {
+        assert.equal(result.action, 1);
+        assert.deepEqual(result.atAction, { hidden: 0, overlays: 0 });
+      }
+      results.push(result);
+    } else {
+      const skip = [
+        "reduced",
+        "system-reduced",
+        "disabled",
+        "slow-fonts",
+        "late-claim",
+        "late-attach",
+        "error",
+      ].includes(name);
+      if (name === "late-attach")
+        await page.evaluate(() => {
+          window.qa.controller.finish("test-preparation");
+          window.qa.controller.attach(document.querySelector("main"), false);
+        });
+      let plan, graphBefore;
+      if (!skip) {
+        await page
+          .waitForSelector(".swarm-startup", {
+            state: "attached",
+            timeout: 6000,
+          })
+          .catch(async (e) => {
+            console.log(
+              await page.evaluate(() => ({
+                marks: performance
+                  .getEntriesByType("mark")
+                  .map((x) => ({ name: x.name, detail: x.detail })),
+                controller: {
+                  done: window.qa.controller.done,
+                  ready: window.qa.controller.readyAt,
+                  started: window.qa.controller.started,
+                },
+                graph: !!window.qa.graph(),
+                errors: [],
+              })),
+            );
+            throw e;
+          });
+        ({ plan, graphBefore } = await page.evaluate(() => ({
+          plan: window.qa.controller.plan,
+          graphBefore: window.qa
+            .graph()
+            ?.nodes.map((n) => ({ id: n.id, x: n.x, y: n.y })),
+        })));
+        assert.ok(plan.agents.length <= 9 && plan.tasks.length <= 34);
+        for (const task of plan.tasks)
+          for (const d of task.dependencies)
+            assert.ok(task.work >= plan.tasks.find((t) => t.id === d).end);
+        assert.equal(
+          await page
+            .locator(
+              ".swarm-startup [tabindex],.swarm-startup button,.swarm-startup input",
+            )
+            .count(),
+          0,
+        );
+        assert.equal(
+          await page.locator(".swarm-startup").getAttribute("aria-hidden"),
+          "true",
+        );
+        assert.equal(
+          await page
+            .locator(".swarm-startup")
+            .evaluate((e) => getComputedStyle(e).pointerEvents),
+          "none",
+        );
+        if (name === "full") {
+          assert.ok(plan.agents.length >= 8, JSON.stringify(plan.agents));
+          assert.equal(
+            new Set(plan.agents.map((a) => JSON.stringify(a.entrance))).size,
+            plan.agents.length,
+          );
+          assert.ok(
+            new Set(plan.tasks.map((t) => Math.round(t.end - t.work))).size > 8,
+          );
+          assert.ok(
+            Math.max(...plan.agents.map((a) => a.gone)) -
+              Math.min(...plan.agents.map((a) => a.gone)) >
+              400,
+          );
+          await page.waitForTimeout(600);
+          await page.screenshot({ path: `${out}/startup.png` });
+        }
+        if (name === "pointer")
+          await page.locator("#first").click({ force: true });
+        if (name === "keyboard")
+          await page
+            .locator("#first")
+            .dispatchEvent("keydown", { key: "Enter" });
+        if (name === "touch")
+          await page.evaluate(() =>
+            window.dispatchEvent(new Event("touchstart")),
+          );
+        if (name === "wheel") await page.mouse.wheel(0, 30);
+        if (name === "scroll")
+          await page.evaluate(() => window.dispatchEvent(new Event("scroll")));
+        if (name === "composition")
+          await page.evaluate(() =>
+            window.dispatchEvent(new Event("compositionstart")),
+          );
+        if (name === "focus") await page.locator("input").first().focus();
+        if (name === "resize")
+          await page.setViewportSize({ width: 1360, height: 900 });
+        if (name === "dpr") {
+          const cdp = await context.newCDPSession(page);
+          await cdp.send("Emulation.setDeviceMetricsOverride", {
+            width: 1440,
+            height: 900,
+            deviceScaleFactor: 1.5,
+            mobile: false,
+          });
+        }
+        if (name === "late-fonts")
+          await page.evaluate(() =>
+            document.fonts.dispatchEvent(new Event("loading")),
+          );
+        if (name === "layout")
+          await page.evaluate(
+            () => (document.querySelector("#first").style.height = "100px"),
+          );
+        if (name === "modal")
+          await page.evaluate(() => {
+            const d = document.createElement("div");
+            d.setAttribute("aria-modal", "true");
+            document.querySelector("main").append(d);
+          });
+        if (name === "unmount")
+          await page.evaluate(() => window.qa.fixture.unmount());
+        if (name === "background")
+          await page.evaluate(() => window.qa.controller.foreground(false));
+        if (name === "css-fallback") {
+          await page.evaluate(() => window.qa.controller.release());
+          await page.waitForTimeout(1300);
+          assert.equal(
+            await page
+              .locator("#first")
+              .evaluate((e) => getComputedStyle(e).opacity),
+            "0",
+            "Old 1.2s fallback must not reveal",
+          );
+          await page.waitForTimeout(2600);
+          assert.equal(
+            await page
+              .locator("#first")
+              .evaluate((e) => getComputedStyle(e).opacity),
+            "1",
+          );
+          assert.equal(
+            await page
+              .locator(".swarm-overlay")
+              .evaluate((e) => getComputedStyle(e).visibility),
+            "hidden",
+          );
+          await page.evaluate(() =>
+            window.qa.controller.finish("css-recovery"),
+          );
+        }
+      }
+      await page.waitForFunction(
+        () => window.qa.controller.settled,
+        {},
+        { timeout: 6000 },
+      );
+      const result = await page.evaluate(() => {
+        const q = window.qa;
+        return {
+          name: q.name,
+          marks: performance
+            .getEntriesByType("mark")
+            .filter((x) => x.name.startsWith("synapse.startup"))
+            .map((x) => ({ name: x.name, detail: x.detail })),
+          duration: performance.getEntriesByName("synapse.startup").at(-1)
+            ?.duration,
+          hidden: document.querySelectorAll(
+            "[data-swarm-hidden],[data-swarm-surface-hidden],[data-swarm-gate]",
+          ).length,
+          overlay: document.querySelectorAll(".swarm-overlay").length,
+          raf: q.controller.raf,
+          timer: q.controller.timer,
+          audio: q.audio,
+          action: q.action,
+          atAction: q.atAction,
+          graphAfter: q
+            .graph()
+            ?.nodes.map((n) => ({ id: n.id, x: n.x, y: n.y })),
+          samples: q.samples,
+        };
+      });
+      assert.equal(
+        result.hidden +
+          result.overlay +
+          result.raf +
+          result.timer +
+          result.audio,
+        0,
+        JSON.stringify(result),
+      );
+      if (name !== "css-fallback" && result.duration)
+        assert.ok(result.duration <= 3800);
+      if (
+        [
+          "full",
+          "strict",
+          "once",
+          "storage-failure",
+          "hidden-start",
+          "hidden-dom-focus",
+          "hidden-stale-claim",
+          "slow-restore",
+          "dense",
+          "scale150",
+          "scale200",
+          "large",
+        ].includes(name)
+      ) {
+        assert.ok(
+          result.marks.at(-1).name.endsWith("complete"),
+          JSON.stringify(result),
+        );
+        assert.ok(
+          result.duration >= 3200 && result.duration <= 3650,
+          JSON.stringify(result),
+        );
+        assert.deepEqual(
+          result.graphAfter,
+          graphBefore,
+          "Graph positions must match handover",
+        );
+      }
+      if (["pointer", "keyboard"].includes(name)) {
+        assert.equal(result.action, 1);
+        assert.deepEqual(result.atAction, { hidden: 0, overlays: 0 });
+      }
+      if (name === "slow-fonts" || name === "late-claim")
+        assert.ok(result.marks.at(-1).name.endsWith("readiness-budget"));
+      if (name === "once" || name === "storage-failure") {
+        await page.evaluate(async () => {
+          const { StartupController } =
+            await import("/src/startup/controller.ts");
+          const q = window.qa;
+          q.second = new StartupController(q.claim);
+          q.second.update(q.state);
+          q.second.attach(document.querySelector("main"));
+        });
+        await page.waitForTimeout(300);
+        assert.equal(await page.locator(".swarm-startup").count(), 0);
+        assert.equal(
+          await page.evaluate(
+            () => performance.getEntriesByName("synapse.startup:start").length,
+          ),
+          1,
+        );
+      }
+      // Once a ready region has become visible it must never be hidden to restart.
+      let shown = false;
+      for (const sample of result.samples) {
+        if (sample.opacity === "1") shown = true;
+        else
+          assert.equal(
+            shown,
+            false,
+            `${name}: visible content was hidden later`,
+          );
+      }
+      results.push({ ...result, plan });
+    }
+    assert.deepEqual(errors, [], name);
+    console.log(`${name}: passed`);
     await context.close();
+    await writeFile(
+      `${out}/${process.argv[2] ? `browser-${process.argv[2]}` : "browser-report"}.json`,
+      JSON.stringify(
+        {
+          success: results.length === cases.length,
+          native: false,
+          cases: results,
+        },
+        null,
+        2,
+      ),
+    );
   }
-  await writeFile(
-    `${out}/browser-report.json`,
-    JSON.stringify({ success: true, cases: report }, null, 2),
-  );
 } finally {
   await browser.close();
   await server.close();

@@ -1,14 +1,9 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { createOverlay } from "./overlay";
-import {
-  SWARM,
-  clamp,
-  curve,
-  smooth,
-  snapshot,
-  type Point,
-  type Target,
-} from "./geometry";
+import { SWARM, snapshot, type Target } from "./geometry";
+import { graphPresentation, type GraphPresentation } from "./presentation";
+import { makePlan, type Plan } from "./plan";
+import { observeLayout } from "./observe";
 export interface StartupState {
   ready: boolean;
   reduced: boolean;
@@ -19,6 +14,7 @@ interface Claim {
   id: string;
   foreground: boolean;
   granted: boolean;
+  visible?: boolean;
 }
 const nativeClaim = () =>
   isTauri()
@@ -26,17 +22,18 @@ const nativeClaim = () =>
     : Promise.resolve({
         id: "browser-session",
         foreground: true,
+        visible: true,
         granted: true,
       });
-const storageKey = "synapse.startup.launch";
-const seen = new Set<string>();
+const seen = new Set<string>(),
+  storageKey = "synapse.startup.launch";
 function remember(id: string) {
   let prior = seen.has(id);
   try {
     prior ||= sessionStorage.getItem(storageKey) === id;
     sessionStorage.setItem(storageKey, id);
   } catch {
-    /* Native claim + in-memory fallback. */
+    /* Native claim remains authoritative. */
   }
   seen.add(id);
   return prior;
@@ -50,408 +47,406 @@ export class StartupController {
     blocked: false,
   };
   private done = false;
-  private started: number | null = null;
-  private prepared = 0;
-  private granted = false;
   private claiming = false;
+  private granted = false;
+  private consumed = false;
+  private nativeFocused: boolean | undefined = isTauri() ? false : undefined;
+  private visibilityRevision = 0;
+  private visible = !document.hidden;
+  private suspended = false;
+  private readyAt: number | null = null;
+  private started: number | null = null;
   private raf = 0;
   private timer = 0;
   private cleanups: (() => void)[] = [];
+  private stopLayout?: () => void;
   private overlay?: ReturnType<typeof createOverlay>;
   private targets: Target[] = [];
-  private hidden = new Map<HTMLElement, string | null>();
-  private origin: Point = { x: 50, y: 35 };
-  private dpr = 1;
-  private nativeFocused: boolean | undefined = isTauri() ? false : undefined;
+  private graph?: GraphPresentation;
+  private plan?: Plan;
+  private hidden = new Map<
+    HTMLElement,
+    { attribute: string; previous: string | null }
+  >();
   constructor(private claim = nativeClaim) {}
-  foreground(value: boolean) {
-    this.nativeFocused = value;
-    if (value) this.wake();
-    else if (this.granted) this.finish("background");
+  get settled() {
+    return this.done;
   }
-  attach(root: HTMLElement) {
+  foreground(value: boolean) {
+    ++this.visibilityRevision;
+    this.nativeFocused = value;
+    if (value) {
+      this.visible = true;
+      if (this.done) {
+        if (!this.consumed) this.requestClaim();
+        return;
+      }
+      if (this.suspended) this.resume();
+      this.arm();
+      this.requestClaim();
+      this.wake();
+    } else if (this.started !== null) this.finish("background");
+  }
+  attach(root: HTMLElement, beforePaint = true) {
     if (this.done) return () => {};
     this.root = root;
-    if (!this.done) {
-      const on = (target: EventTarget, event: string, fn: EventListener) => {
-        target.addEventListener(event, fn, { capture: true, passive: true });
-        this.cleanups.push(() => target.removeEventListener(event, fn, true));
-      };
-      const interrupt = () => {
-        // Consume a foreground opportunity even if interaction beats first RAF.
-        if (this.started === null && !this.claiming)
-          void this.claim().catch(() => {});
-        this.finish("interaction");
-      };
-      for (const event of ["pointerdown", "keydown", "touchstart", "wheel"])
-        on(window, event, interrupt);
-      on(document, "focusin", (e) => {
-        if (e.target !== document.body && e.target !== root) interrupt();
-      });
-      on(window, "focus", () => this.wake());
-      on(window, "blur", () => {
-        if (this.started !== null) this.finish("background");
-      });
-      on(document, "visibilitychange", () => {
-        if (document.hidden && this.started !== null) this.finish("background");
-        else this.wake();
-      });
-      on(window, "resize", () => {
-        if (this.overlay) this.finish("resize");
-      });
-      if (window.visualViewport)
-        on(window.visualViewport, "resize", () => {
-          if (this.overlay) this.finish("viewport");
-        });
+    if (!beforePaint || root.dataset.swarmPresented === "true") {
+      this.finish("already-visible");
+      return () => {};
+    }
+    const on = (target: EventTarget, event: string, fn: EventListener) => {
+      target.addEventListener(event, fn, { capture: true, passive: true });
+      this.cleanups.push(() => target.removeEventListener(event, fn, true));
+    };
+    for (const name of [
+      "pointerdown",
+      "keydown",
+      "touchstart",
+      "wheel",
+      "scroll",
+      "beforeinput",
+      "compositionstart",
+    ])
+      on(window, name, () => this.finish("interaction"));
+    on(document, "focusin", (e) => {
+      if (e.target !== document.body && e.target !== root) this.finish("focus");
+    });
+    on(window, "focus", () => {
+      // A native window event can be absent on WebView2. DOM focus only wakes
+      // preparation; the Rust claim still decides whether we may animate.
+      ++this.visibilityRevision;
+      this.visible = true;
+      this.resume();
+      this.arm();
+      this.requestClaim();
       this.wake();
+    });
+    on(window, "blur", () => {
+      if (this.started !== null) this.finish("background");
+    });
+    on(document, "visibilitychange", () => {
+      ++this.visibilityRevision;
+      if (document.hidden) {
+        if (this.started !== null) this.finish("background");
+        else this.suspend();
+      } else {
+        this.visible = true;
+        this.resume();
+        this.requestClaim();
+        this.wake();
+      }
+    });
+    on(window, "synapse-decoration-suppressed", () =>
+      this.finish("native-dialog"),
+    );
+    on(root, "animationend", (e) => {
+      if (
+        (e as AnimationEvent).animationName === "swarm-gate-safety" &&
+        !this.overlay
+      )
+        this.finish("readiness-budget");
+    });
+    this.arm();
+    return () => {
       if (this.started !== null) {
+        this.finish("unmount");
+        return;
+      }
+      this.root = null;
+      this.release();
+      queueMicrotask(() => {
+        if (!this.root) this.finish("unmount", root);
+      });
+    };
+  }
+  update(state: StartupState) {
+    this.state = state;
+    if (this.done) return;
+    if (state.reduced || !state.enabled || state.blocked) {
+      this.finish("preference-or-modal");
+      return;
+    }
+    if (this.started !== null && !state.ready) {
+      this.finish("restoration");
+      return;
+    }
+    this.arm();
+  }
+  private arm() {
+    if (this.done || !this.root || !this.state.ready || this.started !== null)
+      return;
+    if (this.readyAt === null) {
+      this.readyAt = performance.now();
+      performance.mark("synapse.startup:ready");
+      this.root.dataset.swarmGate = "preparing";
+    }
+    if (document.hidden || !this.visible) {
+      this.suspend();
+      this.requestClaim();
+      return;
+    }
+    if (this.suspended) return;
+    clearTimeout(this.timer);
+    const remaining = SWARM.prepare - (performance.now() - this.readyAt);
+    if (remaining <= 0) {
+      this.finish("readiness-budget");
+      return;
+    }
+    this.timer = window.setTimeout(
+      () => this.finish("readiness-budget"),
+      remaining,
+    );
+    this.requestClaim();
+    this.wake();
+  }
+  private suspend() {
+    if (this.done || this.started !== null) return;
+    this.suspended = true;
+    this.visible = false;
+    clearTimeout(this.timer);
+    this.timer = 0;
+    cancelAnimationFrame(this.raf);
+    this.raf = 0;
+    if (this.root && this.readyAt !== null)
+      this.root.dataset.swarmGate = "hidden";
+  }
+  private resume() {
+    if (this.done || !this.suspended) return;
+    this.suspended = false;
+    this.visible = true;
+    if (this.root && this.readyAt !== null) {
+      this.readyAt = performance.now();
+      this.root.dataset.swarmGate = "preparing";
+      this.arm();
+    }
+  }
+  private requestClaim() {
+    if (this.claiming || this.consumed || (!this.state.ready && !this.done))
+      return;
+    this.claiming = true;
+    const revision = this.visibilityRevision;
+    void this.claim()
+      .then((c) => {
+        this.claiming = false;
+        if (!c.foreground && revision !== this.visibilityRevision) {
+          // A hidden-window reply may arrive after the real focus transition.
+          // Recheck instead of putting a now-visible workspace back on hold.
+          this.requestClaim();
+          return;
+        }
+        if (c.foreground) {
+          this.consumed = true;
+          const prior = remember(c.id);
+          if (this.done) return;
+          if (!c.granted || prior) {
+            this.finish("already-presented");
+            return;
+          }
+          this.granted = true;
+          this.nativeFocused = true;
+          this.visible = true;
+          this.resume();
+          this.wake();
+        } else if (!this.done && (c.visible === false || document.hidden))
+          this.suspend();
+      })
+      .catch(() => {
+        this.claiming = false;
+        this.finish("claim-error");
+      });
+  }
+  private wake() {
+    if (
+      !this.done &&
+      this.root &&
+      this.state.ready &&
+      !this.suspended &&
+      !document.hidden &&
+      this.granted &&
+      !this.raf
+    )
+      this.raf = requestAnimationFrame(this.frame);
+  }
+  private precedence() {
+    const active = document.activeElement;
+    return (
+      this.state.blocked ||
+      !!this.root?.querySelector('[aria-modal="true"],dialog[open]') ||
+      (active instanceof HTMLElement &&
+        active.matches("input,textarea,[contenteditable='true'],.cm-content"))
+    );
+  }
+  private conceal(element: HTMLElement, attribute = "data-swarm-hidden") {
+    this.hidden.set(element, {
+      attribute,
+      previous: element.getAttribute(attribute),
+    });
+    element.setAttribute(attribute, "true");
+  }
+  private reveal(element: HTMLElement) {
+    const own = this.hidden.get(element);
+    if (!own) return;
+    if (element.getAttribute(own.attribute) === "true") {
+      if (own.previous === null) element.removeAttribute(own.attribute);
+      else element.setAttribute(own.attribute, own.previous);
+    }
+    this.hidden.delete(element);
+  }
+  private frame = (now: number) => {
+    this.raf = 0;
+    if (this.done || !this.root) return;
+    try {
+      if (document.hidden || this.nativeFocused === false) {
+        this.finish("background");
+        return;
+      }
+      if (this.precedence()) {
+        this.finish("modal-or-editor");
+        return;
+      }
+      if (!this.overlay) {
+        if (this.readyAt === null || now - this.readyAt >= SWARM.prepare) {
+          this.finish("readiness-budget");
+          return;
+        }
+        if (document.fonts.status !== "loaded") {
+          this.wake();
+          return;
+        }
+        const graph = graphPresentation(this.root);
+        if (
+          !graph &&
+          this.root.querySelector(".graph-surface") &&
+          now - this.readyAt < 180
+        ) {
+          this.wake();
+          return;
+        }
+        this.graph = graph?.nodes.length ? graph : undefined;
+        this.targets = snapshot(this.root);
+        if (document.fonts.status !== "loaded") {
+          this.targets = [];
+          this.wake();
+          return;
+        }
+        this.plan = makePlan(this.targets, this.graph, innerWidth, innerHeight);
+        if (!this.targets.length && !this.graph) {
+          this.finish("empty");
+          return;
+        }
+        if (performance.now() - this.readyAt >= SWARM.prepare) {
+          this.finish("layout-budget");
+          return;
+        }
+        this.started = performance.now();
+        clearTimeout(this.timer);
+        performance.mark("synapse.startup:start", {
+          detail: {
+            targets: this.targets.length,
+            agents: this.plan.agents.length,
+            nodes: this.graph?.nodes.length ?? 0,
+            edges: this.graph?.edges.length ?? 0,
+            duration: this.plan.duration,
+            preparation: this.started - this.readyAt,
+          },
+        });
+        for (const t of this.targets)
+          this.conceal(
+            t.element,
+            t.kind === "surface"
+              ? "data-swarm-surface-hidden"
+              : "data-swarm-hidden",
+          );
+        if (this.graph) this.conceal(this.graph.element);
+        this.overlay = createOverlay(
+          this.targets,
+          this.graph,
+          this.plan,
+          (i) => this.reveal(this.targets[i].element),
+          () => {
+            if (this.graph) this.reveal(this.graph.element);
+          },
+        );
+        delete this.root.dataset.swarmGate;
+        this.stopLayout = observeLayout(
+          this.root,
+          [
+            ...this.targets.map((t) => t.element),
+            ...(this.graph ? [this.graph.element] : []),
+          ],
+          (reason) => this.finish(reason),
+        );
         this.timer = window.setTimeout(
           () => this.finish("deadline"),
           Math.max(0, SWARM.deadline - (performance.now() - this.started)),
         );
       }
-    }
-    return () => {
-      this.root = null;
-      if (this.overlay) this.finish("unmount");
-      else {
-        this.release();
-        // React 19 may run its Strict Mode effect probe after the first RAF.
-        // No content is hidden yet. Allow its synchronous reattachment while
-        // preserving the original clock and in-flight native claim.
-        queueMicrotask(() => {
-          if (!this.root && this.started !== null) this.finish("unmount");
-        });
-      }
-    };
-  }
-  update(state: StartupState) {
-    this.state = state;
-    if (
-      this.started !== null &&
-      (state.reduced || !state.enabled || state.blocked)
-    )
-      this.finish("preference-or-modal");
-  }
-  private wake = () => {
-    if (
-      !this.done &&
-      this.root &&
-      !this.raf &&
-      this.nativeFocused !== false &&
-      !document.hidden &&
-      document.hasFocus()
-    )
-      this.raf = requestAnimationFrame(this.frame);
-  };
-  private frame = (now: number) => {
-    this.raf = 0;
-    if (this.done || !this.root) return;
-    try {
-      if (
-        document.hidden ||
-        !document.hasFocus() ||
-        this.nativeFocused === false
-      ) {
-        if (this.started !== null) this.finish("background");
+      if (this.graph && !this.graph.valid()) {
+        this.finish("graph-invalidated");
         return;
       }
-      if (this.started === null) {
-        this.started = now;
-        performance.mark("synapse.startup:foreground");
-        this.timer = window.setTimeout(
-          () => this.finish("deadline"),
-          SWARM.deadline,
-        );
-        this.claiming = true;
-        void this.claim()
-          .then((c) => {
-            this.claiming = false;
-            if (this.done) return;
-            if (!c.foreground) {
-              clearTimeout(this.timer);
-              this.started = null;
-              // Wait for actual foreground; no hidden animation or focus request.
-              cancelAnimationFrame(this.raf);
-              this.raf = 0;
-              return;
-            }
-            if (!c.granted || remember(c.id)) this.finish("already-presented");
-            else if (this.nativeFocused === false) this.finish("background");
-            else this.granted = true;
-          })
-          .catch(() => this.finish("claim-error"));
+      if (
+        this.targets.some(
+          (t) =>
+            t.kind === "text" &&
+            t.element.textContent?.trim() !== t.text.join(""),
+        )
+      ) {
+        this.finish("content-change");
+        return;
       }
-      const elapsed = now - this.started;
-      if (elapsed >= SWARM.end) {
+      const elapsed = now - this.started!;
+      if (elapsed >= this.plan!.duration) {
         this.finish("complete");
         return;
       }
-      if (this.state.reduced || !this.state.enabled) {
-        this.finish("motion-disabled");
-        return;
-      }
-      if (this.state.blocked || this.precedence()) {
-        this.finish("modal-or-editor");
-        return;
-      }
-      if (!this.overlay) {
-        if (elapsed > SWARM.prepare) {
-          this.finish("readiness-budget");
-          return;
-        }
-        if (
-          this.granted &&
-          this.state.ready &&
-          document.fonts.status === "loaded"
-        ) {
-          this.targets = snapshot(this.root);
-          // Measuring/creating the overlay also belongs to preparation.
-          if (
-            performance.now() - this.started > SWARM.prepare ||
-            !this.targets.length
-          ) {
-            this.finish("layout-budget");
-            return;
-          }
-          const brand =
-            this.targets.find((t) =>
-              t.element.matches(".brand, .welcome h1"),
-            ) ?? this.targets[0];
-          this.origin = { x: brand.rect.x + 12, y: brand.rect.y + 12 };
-          this.prepared = performance.now();
-          this.dpr = window.devicePixelRatio;
-          this.overlay = createOverlay(
-            this.targets,
-            1150 - (this.prepared - this.started),
-          );
-          this.prepared = performance.now();
-          if (this.prepared - this.started > SWARM.prepare) {
-            this.finish("overlay-budget");
-            return;
-          }
-          this.overlay.element.style.animationDuration = `${1150 - (this.prepared - this.started)}ms`;
-          for (const t of this.targets) {
-            this.hidden.set(
-              t.element,
-              t.element.getAttribute("data-swarm-hidden"),
-            );
-            t.element.setAttribute("data-swarm-hidden", "true");
-          }
-          performance.mark("synapse.startup:snapshot", {
-            detail: { targets: this.targets.length },
-          });
-          this.observe();
-        }
-      }
-      if (this.overlay) {
-        if (window.devicePixelRatio !== this.dpr) {
-          this.finish("dpr");
-          return;
-        }
-        this.draw(now);
-      }
+      this.overlay.draw(Math.max(0, elapsed));
       this.wake();
     } catch {
       this.finish("error");
     }
   };
-  private precedence() {
-    const active = document.activeElement;
-    return (
-      !!this.root?.querySelector('[aria-modal="true"], dialog[open]') ||
-      (active instanceof HTMLElement &&
-        active.matches(
-          "input, textarea, [contenteditable='true'], .cm-content",
-        ))
-    );
-  }
-  private observe() {
-    const sizes = new Map<Element, { width: number; height: number }>();
-    const resize = new ResizeObserver((entries) => {
-      for (const e of entries) {
-        const old = sizes.get(e.target),
-          next = e.contentRect;
-        if (
-          old &&
-          (Math.abs(old.width - next.width) > 1 ||
-            Math.abs(old.height - next.height) > 1)
-        ) {
-          this.finish("layout");
-          return;
-        }
-        sizes.set(e.target, { width: next.width, height: next.height });
-      }
-    });
-    for (const t of this.targets) resize.observe(t.element);
-    this.cleanups.push(() => resize.disconnect());
-    const mutation = new MutationObserver(() => {
-      if (
-        this.precedence() ||
-        this.targets.some(
-          (t) =>
-            !t.element.isConnected ||
-            (t.kind === "text" &&
-              t.element.textContent?.trim() !== t.text.join("")),
-        )
-      )
-        this.finish("content-change");
-    });
-    mutation.observe(this.root!, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-      attributes: true,
-      attributeFilter: ["hidden", "aria-modal", "role"],
-    });
-    this.cleanups.push(() => mutation.disconnect());
-    const fontChange = () => this.finish("fonts");
-    document.fonts.addEventListener("loading", fontChange);
-    document.fonts.addEventListener("loadingdone", fontChange);
-    this.cleanups.push(() => {
-      document.fonts.removeEventListener("loading", fontChange);
-      document.fonts.removeEventListener("loadingdone", fontChange);
-    });
-    const resolution = matchMedia(`(resolution: ${this.dpr}dppx)`);
-    const dprChange = () => this.finish("dpr");
-    resolution.addEventListener("change", dprChange);
-    this.cleanups.push(() =>
-      resolution.removeEventListener("change", dprChange),
-    );
-    if (PerformanceObserver.supportedEntryTypes.includes("layout-shift")) {
-      const layout = new PerformanceObserver((list) => {
-        // Construction marks deliberately grow. Only shifts of the actual
-        // application invalidate its snapshot, never our decorative copy.
-        if (
-          list
-            .getEntries()
-            .some(
-              (e) =>
-                e.startTime > this.prepared &&
-                (
-                  e as PerformanceEntry & { sources?: { node?: Node }[] }
-                ).sources?.some((s) => s.node && this.root?.contains(s.node)),
-            )
-        )
-          this.finish("layout-shift");
-      });
-      layout.observe({ type: "layout-shift" });
-      this.cleanups.push(() => layout.disconnect());
-    }
-  }
-  private reveal(t: Target) {
-    if (!this.hidden.has(t.element)) return;
-    const previous = this.hidden.get(t.element);
-    if (t.element.getAttribute("data-swarm-hidden") === "true") {
-      if (previous === null) t.element.removeAttribute("data-swarm-hidden");
-      else t.element.setAttribute("data-swarm-hidden", previous!);
-    }
-    this.hidden.delete(t.element);
-  }
-  private draw(now: number) {
-    const overlay = this.overlay!,
-      start = this.prepared + SWARM.gather;
-    const buildEnd = this.started! + SWARM.buildEnd;
-    const waves = Math.ceil(this.targets.length / SWARM.agents),
-      slot = (buildEnd - start) / waves;
-    const exit = clamp((now - buildEnd) / (SWARM.end - SWARM.buildEnd));
-    overlay.cursors.forEach((cursor, agent) => {
-      let position = {
-        x: this.origin.x + (agent % 3) * 16,
-        y: this.origin.y + Math.floor(agent / 3) * 18,
-      };
-      let mode = "pointer";
-      if (now < start) {
-        position = curve(
-          { x: position.x - 38 + agent * 8, y: position.y + 35 },
-          position,
-          (now - this.prepared) / SWARM.gather,
-          6,
-        );
-      } else
-        for (let i = agent; i < this.targets.length; i += SWARM.agents) {
-          const target = this.targets[i],
-            mark = overlay.marks[i],
-            wave = Math.floor(i / SWARM.agents);
-          const progress = (now - start - wave * slot) / slot;
-          if (progress < 0) break;
-          const corner = { x: target.rect.x, y: target.rect.y },
-            end = {
-              x: corner.x + target.rect.width,
-              y: corner.y + target.rect.height,
-            };
-          if (progress < 0.22) {
-            position = curve(
-              position,
-              corner,
-              progress / 0.22,
-              agent % 2 ? 18 : -18,
-            );
-            break;
-          }
-          const build = clamp((progress - 0.22) / 0.62);
-          mode = target.kind === "text" ? "text" : "crosshair";
-          position = curve(corner, end, build, 0);
-          if (progress < 0.94) {
-            mark.style.opacity = "1";
-            if (target.kind === "text") {
-              mark.textContent = target.text
-                .slice(0, Math.ceil(build * target.text.length))
-                .join("");
-              position = {
-                x: corner.x + target.rect.width * build,
-                y: corner.y + target.rect.height * 0.5,
-              };
-            } else {
-              mark.style.width = `${Math.max(1, target.rect.width * smooth(build))}px`;
-              mark.style.height = `${Math.max(1, target.rect.height * smooth(build))}px`;
-              mark.classList.toggle("swarm-handles", build > 0.92);
-            }
-            break;
-          }
-          this.reveal(target);
-          mark.style.opacity = "0";
-          mode = "pointer";
-        }
-      cursor.dataset.mode = mode;
-      cursor.style.transform = `translate3d(${position.x + exit * 20}px,${position.y - exit * 12}px,0)`;
-      cursor.style.opacity = `${1 - smooth(exit)}`;
-    });
-  }
   private release() {
     cancelAnimationFrame(this.raf);
     this.raf = 0;
     clearTimeout(this.timer);
     this.timer = 0;
+    this.stopLayout?.();
+    this.stopLayout = undefined;
     this.cleanups.splice(0).forEach((fn) => {
       try {
         fn();
       } catch {
-        /* One failed observer cannot strand the others. */
+        /* Continue releasing. */
       }
     });
   }
-  finish(reason: string) {
+  finish(reason: string, detachedRoot?: HTMLElement) {
     if (this.done) return;
     this.done = true;
     this.release();
-    this.targets.forEach((t) => this.reveal(t));
+    for (const element of this.hidden.keys()) this.reveal(element);
+    const root = this.root ?? detachedRoot;
+    if (root) {
+      delete root.dataset.swarmGate;
+      root.dataset.swarmPresented = "true";
+    }
     this.overlay?.remove();
     this.overlay = undefined;
     this.targets = [];
-    this.hidden.clear();
+    this.plan = undefined;
+    this.graph = undefined;
     this.root = null;
-    if (this.started !== null) {
-      performance.mark(`synapse.startup:finish:${reason}`);
+    performance.mark(`synapse.startup:finish:${reason}`);
+    if (this.started !== null)
       performance.measure(
         "synapse.startup",
-        "synapse.startup:foreground",
+        "synapse.startup:start",
         `synapse.startup:finish:${reason}`,
       );
-    }
+    this.requestClaim();
   }
 }
-// Survives Strict Mode, HMR and multiple App renders; Rust survives full reload.
 const key = Symbol.for("synapse.startup.controller"),
   shared = globalThis as unknown as Record<symbol, StartupController>;
 export const startup = (shared[key] ??= new StartupController());

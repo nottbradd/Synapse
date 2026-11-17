@@ -24,10 +24,15 @@ it("defaults new profiles to 70% while retaining every saved low/zero/owner volu
     expect(decodePreferences(JSON.stringify(old))).toEqual({
       ...old,
       startupAnimation: true,
+      returnAnimation: true,
     });
     expect(
       decodePreferences(JSON.stringify({ ...old, startupAnimation: false }))
         .startupAnimation,
+    ).toBe(false);
+    expect(
+      decodePreferences(JSON.stringify({ ...old, returnAnimation: false }))
+        .returnAnimation,
     ).toBe(false);
   }
 });

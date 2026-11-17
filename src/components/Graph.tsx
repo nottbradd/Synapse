@@ -13,6 +13,7 @@ import { GraphScene } from "../interaction/graphScene";
 import { nodeScreenRadius, type SceneNode } from "../interaction/topology";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 import TransitionTitle from "./TransitionTitle";
+import { registerPresentation } from "../startup/presentation";
 export default function Graph({
   snapshot,
   exploration,
@@ -128,6 +129,10 @@ export default function Graph({
     exploration.revision,
   ]);
   useEffect(() => scene.installForces(), [scene, topology]);
+  useLayoutEffect(
+    () => registerPresentation(container.current!, () => scene.presentation()),
+    [scene],
+  );
   const scope = exploration.scope,
     title =
       scope.kind === "topic"
@@ -241,6 +246,7 @@ export default function Graph({
       {scope.kind === "topic" && scene.topology.visibleNodes.length === 1 && (
         <div
           className="network-empty"
+          data-swarm="box"
           style={{ left: left + 28, right: selected ? editorWidth + 60 : 28 }}
         >
           No linked concepts yet. Add a WikiLink in this note to connect
@@ -250,6 +256,7 @@ export default function Graph({
       {!scene.topology.visibleNodes.length && (
         <div
           className="graph-empty"
+          data-swarm="box"
           style={{ left: left + 24, right: selected ? editorWidth + 56 : 24 }}
         >
           <h2>No notes yet</h2>

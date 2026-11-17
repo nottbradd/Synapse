@@ -1,5 +1,37 @@
 # Synapse validation
 
+## 0.8.0 — 17 November 2026
+
+Swarm Rebuild and the separate foreground-return effect are implemented, built and installed locally. **Native recording acceptance remains incomplete.** The supplied 0.8.0 GIF/MP4 previews are browser fixtures using the production controllers and GraphScene; they are not a new native process or a genuine Alt-Tab recording. No GitHub release was published.
+
+| Check                                            | Result                                                                     |
+| ------------------------------------------------ | -------------------------------------------------------------------------- |
+| TypeScript typecheck and ESLint                  | Passed                                                                     |
+| Frontend tests                                   | 77 passed, including native-focus reconciliation and stale-query cleanup   |
+| Rust tests                                       | 47 passed; one explicit live-provider test ignored                         |
+| Rustfmt and Clippy, all targets, warnings denied | Passed                                                                     |
+| Browser lifecycle checks                         | 56 passed on the final source                                              |
+| Production build                                 | Passed; unsigned x64 NSIS package built with the existing public AI origin |
+| Installed executable and notices                 | Match the extracted installer payload byte-for-byte                        |
+| Genuine native startup and Alt-Tab recordings    | Not completed; see the native limitation below                             |
+
+The final browser suite measured **3504.8 ms** for the populated startup and **281.6 ms** for the standard return. Startup used nine agents, 18 UI targets, five actual nodes and four actual edges. The 300-node subnetwork fixture bounded its construction sample to six nodes and four edges. Checks cover dependency ordering, different entrances/durations/exits, matching graph handover positions, no completed-UI-then-hide flash, and no graph-sized selection box. A frozen-controller check confirms that the old short CSS deadline does not reveal content at 1300 ms and that independent fallbacks reveal it by 3900 ms.
+
+The suite also covers welcome/empty views, collapsed navigation, open drawers, 900×600 and 1920×1080 windows, emulated 100%/150%/200% DPR, Full/Reduced/Follow Windows, both animation toggles, slow restoration/fonts, late eligibility, storage failure, exceptions, Strict Mode, unmount, layout/font/DPR changes, first input and tray-style delayed presentation. Return checks verify one effect per qualifying simulated focus cycle, bounce/chatter/cooldown filtering, success/error dialog suppression with late focus restoration, no startup overlap, zero new AudioContexts, complete timer/RAF/overlay cleanup, and preserved graph state, unsaved textarea content, selection and scroll. Actual native CodeMirror and file-picker return checks remain outstanding.
+
+During the installed test, native `is_focused` and DOM focus were both true while no Tauri window-focus event had reached the controller; the hidden startup gate remained pending. The final source adds event-driven native focus rechecks on DOM transitions and lets DOM focus wake preparation while retaining the Rust claim as authority. It also discards a stale hidden-window reply arriving after foreground. Both regressions now pass in browser/unit tests. **The corrected focus path has not yet been reverified in an installed foreground session.** Windows Computer Use stopped because it could not determine the other browser window's URL confidently enough to enforce its policy, so desktop input ended. The incomplete native frames are not presented as a successful recording.
+
+The browser review clips were separately recorded at normal speed: startup **3502.3 ms**, return **283.8 ms**. The MP4s preserve original compositor timestamps within **0.5 ms**, contain no audio streams and include a short final hold. GIFs are 25 fps review copies and loop for review only. Construction, intermediate and final frames were visually inspected. These recordings are `.local/release-0.8.0/Synapse-0.8.0-browser-{startup,return}.{mp4,gif}`; reproduce them with `node scripts/record-swarm-preview.mjs`. The return preview uses a simulated focus lifecycle, not Alt-Tab.
+
+All runtime data came from a disposable synthetic vault. The original `device.json` and `last-vault.json` were restored byte-for-byte and checked again after installation. The exact existing preference record was never written during runtime testing (Full motion, sound enabled, 69% volume); reading missing animation toggles does not migrate storage. Personal AI selection, consent and funding were preserved. No provider calls or new audio tuning occurred. The testing process and debugging port are closed; Synapse was also closed before the runtime checks began.
+
+Installer: `src-tauri/target/release/bundle/nsis/Synapse_0.8.0_x64-setup.exe`.
+SHA-256: `6748b3130827b95acb5e33128704fa46e6cdc4b2deaf5eafcdd1feede8e14dcc`.
+Installed executable SHA-256: `9bee2a490173990dc4f3aa41f207a00d62165ab33d3987858aab50725240d6c2`.
+GPL v3, copyright and third-party notices match the installer resources.
+
+Machine-readable evidence is local and ignored by Git: `.local/swarm-0.8.0/browser-report.json` (56 cases), `.local/release-0.8.0/package-verification.json`, `restored-owner-state.json`, both `browser-*/report.json` files and `preview-media-validation.json`. A resource-contended intermediate browser run correctly skipped preparation at its deadline; normal-motion fixtures now explicitly preload their fonts, while separate slow-font/deadline cases retain the failure-path checks. Windows 10, physical monitor/DPI changes and the final native foreground captures remain unverified. The installer remains unsigned. Historical 0.7.0 audio and native results below are not claimed as new 0.8.0 verification.
+
 ## 0.7.0 — 16 November 2026
 
 The installed production build adds the silent cursor-swarm startup and calibrates the original static chimes. All new desktop checks used temporary synthetic vaults. There were no live OpenAI requests, hosted-policy edits, repository visibility changes or new dependencies. The original vault selection, Personal AI selection, consent state, device settings and exact saved preference record (Full animations and 69% volume) were restored. The installed app was restarted normally without a debugging port.

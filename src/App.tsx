@@ -21,8 +21,8 @@ import { feedback } from "./interaction/events";
 import StudyPanel from "./components/StudyPanel";
 import { useStudy } from "./hooks/useStudy";
 import { useReducedMotion } from "./hooks/useReducedMotion";
-import { useStartup } from "./startup/useStartup";
-import { startup } from "./startup/controller";
+import { useStartup, foreground } from "./startup/useStartup";
+import { attachNativeFocus } from "./interaction/nativeFocus";
 export default function App() {
   const w = useWorkspace();
   const reduced = useReducedMotion();
@@ -48,27 +48,10 @@ export default function App() {
   }, [vault?.root]);
   useEffect(() => {
     if (!isTauri()) return;
-    let alive = true,
-      notified = false;
-    const unlisten = getCurrentWindow().onFocusChanged(({ payload }) => {
-      notified = true;
-      if (alive) {
-        feedback.setNativeFocus(payload);
-        startup.foreground(payload);
-      }
+    return attachNativeFocus(getCurrentWindow(), (focused) => {
+      feedback.setNativeFocus(focused);
+      foreground(focused);
     });
-    void getCurrentWindow()
-      .isFocused()
-      .then((focused) => {
-        if (alive && !notified) {
-          feedback.setNativeFocus(focused);
-          startup.foreground(focused);
-        }
-      });
-    return () => {
-      alive = false;
-      void unlisten.then((fn) => fn());
-    };
   }, []);
   const [action, setAction] = useState<Action | null>(null),
     [noteSubject, setNoteSubject] = useState(""),

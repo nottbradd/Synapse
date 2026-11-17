@@ -1,12 +1,15 @@
 export const SWARM = {
-  agents: 6,
-  targets: 12,
-  hardCap: 15,
-  prepare: 230,
-  gather: 120,
-  buildEnd: 950,
-  end: 1050,
-  deadline: 1200,
+  agents: 9,
+  targets: 20,
+  hardCap: 24,
+  prepare: 250,
+  end: 3500,
+  deadline: 3800,
+  returnEnd: 280,
+  returnDeadline: 400,
+  away: 500,
+  stable: 50,
+  cooldown: 1500,
 } as const;
 export interface Point {
   x: number;
@@ -18,13 +21,19 @@ export interface Rect extends Point {
 }
 export interface Target {
   element: HTMLElement;
-  kind: "text" | "box";
+  kind: "surface" | "text" | "box" | "duplicate";
   rect: Rect;
+  group: "layout" | "typography" | "navigation" | "controls";
   text: string[];
+  widths: number[];
+  baseline: number;
   font: string;
   lineHeight: string;
   letterSpacing: string;
   color: string;
+  background: string;
+  border: string;
+  radius: string;
 }
 export const clamp = (n: number) => Math.max(0, Math.min(1, n));
 export const smooth = (n: number) => {
@@ -33,54 +42,56 @@ export const smooth = (n: number) => {
 };
 export function curve(a: Point, b: Point, t: number, bend = 18): Point {
   const p = smooth(t),
-    arc = Math.sin(Math.PI * p) * bend;
-  return { x: a.x + (b.x - a.x) * p + arc, y: a.y + (b.y - a.y) * p - arc };
+    dx = b.x - a.x,
+    dy = b.y - a.y;
+  const arc = Math.sin(Math.PI * p) * bend,
+    length = Math.hypot(dx, dy) || 1;
+  return {
+    x: a.x + dx * p - (dy / length) * arc,
+    y: a.y + dy * p + (dx / length) * arc,
+  };
 }
 export function graphemes(text: string) {
-  // WebView2 supports Segmenter. If unavailable, skip typing instead of
-  // splitting a combining sequence or emoji into broken fragments.
   if (!("Segmenter" in Intl)) return [];
-  const Segmenter = Intl.Segmenter;
   return Array.from(
-    new Segmenter(undefined, { granularity: "grapheme" }).segment(text),
+    new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text),
     (s) => s.segment,
   );
 }
 export function snapshot(root: HTMLElement): Target[] {
-  const width = window.innerWidth,
-    height = window.innerHeight;
+  const width = innerWidth,
+    height = innerHeight,
+    active = document.activeElement;
   const excluded =
     "[hidden], [inert], [aria-hidden='true'], [data-swarm-sensitive], textarea, [contenteditable='true'], .cm-editor";
-  const active = document.activeElement;
-  // One bounded read phase. No geometry reads occur in the animation loop.
   const candidates = Array.from(
-    root.querySelectorAll<HTMLElement>("[data-swarm]"),
+    root.querySelectorAll<HTMLElement>(
+      "[data-swarm]:not([data-swarm='graph']), [data-swarm-surface]",
+    ),
   )
-    .slice(0, 40)
-    .map((element) => {
-      const bounds = element.getBoundingClientRect(),
-        css = getComputedStyle(element);
-      return { element, bounds, css };
-    });
-  const sidebar = root.querySelector(".sidebar")?.getBoundingClientRect();
-  const heading = root.querySelector(".graph-heading")?.getBoundingClientRect();
-  const controls = root
-    .querySelector(".graph-controls")
-    ?.getBoundingClientRect();
+    .slice(0, 64)
+    .map((element) => ({
+      element,
+      bounds: element.getBoundingClientRect(),
+      css: getComputedStyle(element),
+    }));
+  const context = document.createElement("canvas").getContext("2d")!;
   const targets: Target[] = [];
   for (const { element, bounds, css } of candidates) {
-    if (targets.length >= Math.min(SWARM.targets, SWARM.hardCap)) break;
+    if (targets.length >= SWARM.targets) break;
+    const surface = element.hasAttribute("data-swarm-surface");
     if (
       element.closest(excluded) ||
-      element.querySelector(
-        "input[type=password], [data-swarm-sensitive], textarea, [contenteditable='true'], .cm-editor",
-      ) ||
-      (active && active !== document.body && element.contains(active)) ||
-      !element.checkVisibility({
-        checkOpacity: true,
-        checkVisibilityCSS: true,
-      }) ||
-      css.opacity === "0" ||
+      (!surface &&
+        element.querySelector(
+          "input[type=password], textarea, [contenteditable='true'], .cm-editor",
+        )) ||
+      (!surface &&
+        active &&
+        active !== document.body &&
+        element.contains(active)) ||
+      css.display === "none" ||
+      css.visibility === "hidden" ||
       bounds.width < 8 ||
       bounds.height < 8 ||
       bounds.left < 0 ||
@@ -88,46 +99,73 @@ export function snapshot(root: HTMLElement): Target[] {
       bounds.right > width + 1 ||
       bounds.bottom > height + 1 ||
       targets.some(
-        (t) => t.element.contains(element) || element.contains(t.element),
+        (t) =>
+          t.kind !== "surface" &&
+          (t.element.contains(element) || element.contains(t.element)),
       )
     )
       continue;
-    let rect: Rect = {
+    const scroll = element.closest(".hierarchy");
+    if (scroll) {
+      const r = scroll.getBoundingClientRect();
+      if (bounds.top < r.top || bounds.bottom > r.bottom) continue;
+    }
+    let text =
+      element.dataset.swarm === "text"
+        ? graphemes(element.textContent?.trim() ?? "")
+        : [];
+    if (text.length > 48 || element.querySelector("input,button,textarea"))
+      text = [];
+    const kind = surface
+      ? "surface"
+      : text.length
+        ? "text"
+        : element.dataset.swarm === "duplicate"
+          ? "duplicate"
+          : "box";
+    const rect = {
       x: bounds.left,
       y: bounds.top,
       width: bounds.width,
       height: bounds.height,
     };
-    if (element.dataset.swarm === "graph") {
-      const left = Math.max(bounds.left, (sidebar?.right ?? 0) + 24),
-        top = Math.max(bounds.top, (heading?.bottom ?? 0) + 24);
-      rect = {
-        x: left,
-        y: top,
-        width: bounds.right - left - 24,
-        height: (controls?.top ?? bounds.bottom) - top - 24,
-      };
-      if (rect.width < 80 || rect.height < 80) continue;
-    }
-    const text =
-      element.dataset.swarm === "text"
-        ? graphemes(element.textContent?.trim() ?? "")
-        : [];
-    const type =
-      text.length > 0 &&
-      text.length <= 42 &&
-      !element.querySelector("input,button,textarea")
-        ? "text"
-        : "box";
+    context.font = css.font;
+    const spacing = parseFloat(css.letterSpacing) || 0;
+    const widths = text.map(
+      (_, i) =>
+        context.measureText(text.slice(0, i + 1).join("")).width + i * spacing,
+    );
+    const metrics = context.measureText("Mg"),
+      line = parseFloat(css.lineHeight) || parseFloat(css.fontSize) * 1.2;
+    const ascent =
+      metrics.fontBoundingBoxAscent || parseFloat(css.fontSize) * 0.8;
+    const descent =
+      metrics.fontBoundingBoxDescent || parseFloat(css.fontSize) * 0.2;
     targets.push({
       element,
+      kind,
       rect,
-      kind: type,
-      text: type === "text" ? text : [],
+      text,
+      widths,
+      baseline:
+        rect.y +
+        (parseFloat(css.paddingTop) || 0) +
+        (line - ascent - descent) / 2 +
+        ascent,
+      group: surface
+        ? "layout"
+        : kind === "text"
+          ? "typography"
+          : element.closest(".sidebar")
+            ? "navigation"
+            : "controls",
       font: css.font,
       lineHeight: css.lineHeight,
       letterSpacing: css.letterSpacing,
       color: css.color,
+      background: css.backgroundColor,
+      border: css.borderColor,
+      radius: css.borderRadius,
     });
   }
   return targets;

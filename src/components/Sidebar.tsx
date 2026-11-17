@@ -146,11 +146,12 @@ export default function Sidebar({
       <aside
         className={`sidebar glass ${collapsed ? "collapsed" : ""}`}
         aria-label="Vault navigation"
+        data-swarm-surface=""
       >
         <header className="sidebar-head">
-          <span className="brand" data-swarm="box">
-            <Waypoints size={19} />
-            {!collapsed && "Synapse"}
+          <span className="brand">
+            <Waypoints size={19} data-swarm="box" />
+            {!collapsed && <span data-swarm="text">Synapse</span>}
           </span>
           <button
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -262,13 +263,10 @@ export default function Sidebar({
               <Plus size={17} />
               New note
             </button>
-            <nav
-              className="hierarchy"
-              aria-label="Neurons and subjects"
-              data-swarm="box"
-            >
+            <nav className="hierarchy" aria-label="Neurons and subjects">
               <button
                 className={`all-row ${!location.neuron_id ? "selected" : ""}`}
+                data-swarm="duplicate"
                 aria-current={!location.neuron_id ? "page" : undefined}
                 onClick={() =>
                   selectLocation({ neuron_id: null, subject_id: null })
@@ -281,6 +279,7 @@ export default function Sidebar({
                 <div className="neuron-group" key={neuron.id}>
                   <div
                     className={`tree-row neuron-row ${location.neuron_id === neuron.id && !location.subject_id ? "selected" : ""}`}
+                    data-swarm="box"
                   >
                     {disclosure(neuron.id, neuron.name)}
                     <button
@@ -313,6 +312,7 @@ export default function Sidebar({
                           <div key={subject.id} className="subject-group">
                             <div
                               className={`tree-row subject-row ${location.subject_id === subject.id ? "selected" : ""}`}
+                              data-swarm="duplicate"
                             >
                               {disclosure(subject.id, subject.name)}
                               <span
@@ -339,7 +339,7 @@ export default function Sidebar({
                               {more(subject.id, false)}
                             </div>
                             {(!closed.has(subject.id) || query) && (
-                              <div className="note-rows">
+                              <div className="note-rows" data-swarm="box">
                                 <NoteTree
                                   notes={notes}
                                   subject={subject}
