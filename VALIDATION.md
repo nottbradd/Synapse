@@ -1,5 +1,48 @@
 # Synapse validation
 
+## 0.9.0 — 18 November 2026
+
+Installed Synapse 0.9.0 played the v3 startup in **4461.7 ms** on a populated desktop. The recorded Windows Alt-Tab return lasted **281.5 ms**. Application source is `fb5d3b7a49f11e83f8ff3ed62108a69d0eca9379` on the local branch `codex/startup-v3`, based on the 0.8.1 native show/focus repair. The only subsequent change is this validation record. The release and its recordings stayed local.
+
+### Reference and installed presentation
+
+The supplied v3 HTML was replayed at 1× before implementation. Its construction ended at 4.0561 s and its sequence at 4.4561 s. The updated populated layout uses 0.900 s of opening orbit, ends construction at 4.060 s, and targets 4.460 s overall. The independent startup cleanup deadline is 4.900 s. The native show claim, 250 ms preparation budget and 400 ms return safety deadline were retained.
+
+The cold capture began **444.7 ms before** the startup mark. Both the cold and tray captures showed fourteen named crosshairs, 16 measured UI targets, six live graph nodes with six explicitly typed labels, and three existing connections. The schedule contained six kinds of work across the real sidebar and graph. Each graph label kept its node’s agent while the caret followed the letter advances. Individual retirement lasted 160 ms. In the cold capture the first agent was gone at 1.71 s and the last at 4.22 s. The coordinated outline pulse lasted 300 ms in the nodes’ subject colours. End-of-effect inspections found zero overlays, concealed elements, preparation gates or new audio contexts.
+
+The approved HTML and the installed cold-start MP4 were then played together at 1×. Seven paired frames covered the orbit, peel, selection handles, dimensions, typewriter carets, dragged copies, connection guides, departures and closing pulse. The live graph and sidebar determine where each job happens. The 1× side-by-side review is `Synapse-0.9.0-v3-comparison.mp4`.
+
+### Installed lifecycle results
+
+| Case | Observed result |
+| --- | --- |
+| Fresh visible process, populated vault | 4461.7 ms, 68.8 ms preparation. The recording includes the first presentation. |
+| Hidden tray process, first foreground | Zero effects while hidden. The first foreground startup took 4465.5 ms, with 31.2 ms preparation. |
+| Fresh process, welcome screen | 1821.0 ms with two agents, three UI targets and no graph jobs. |
+| Reload after the first presentation | The native process reported `already-presented` and added zero effects. |
+| Recorded Alt-Tab to a blank Notepad tab and back | One 281.5 ms return. All 47 active samples kept the workspace visible with zero agents. The graph Canvas hash stayed identical. The probe observed zero audio contexts and zero oscillator or buffer-source starts. |
+| Real editor with an unsaved change | A 286.2 ms return preserved the complete CodeMirror document, caret/selection, 742 px scroll, editor focus, Edit mode, drawer geometry, scope, zoom and underlying Canvas hash. The next real keystroke replaced the selected 16 characters once, after the effect. |
+| Native folder picker | Escape cancelled the picker and produced zero return effects. The following genuine Alt-Tab produced one 283.9 ms return. |
+
+Before the startup edits, a fresh baseline recorded a 283.6 ms browser return and the prior 283.9 ms installed 0.8.1 return was retained. The old and new renderers produced identical pixels at all nine sampled times from 0 through 279 ms in a controlled comparison. Native focus traces used real window switches. The WebView diagnostics observed events and compositor frames with focus emulation disabled.
+
+**Four native timing checks remain incomplete.** The desktop traces did not capture a first input during startup or during the return, a deliberate absence shorter than 500 ms, or a second qualifying foreground cycle within the 1500 ms cooldown. All four cases passed in the browser lifecycle suite.
+
+### Checks and package
+
+| Check | Result |
+| --- | --- |
+| Frontend, TypeScript and ESLint | 78 tests passed. Typechecking and lint passed. |
+| Rust | 47 tests passed. The explicitly opt-in live-provider test remained ignored. |
+| Browser lifecycle suite | All 58 passed, including Full, Reduced, Follow Windows, independent switches, input, dialog suppression, cooldown, large vaults, hidden show/focus, cleanup and CSS recovery. |
+| Production build | Tauri built the unsigned Windows x64 NSIS installer with the existing hosted AI origin. |
+| Extracted installer payload | The installed executable and three license/notice files matched the installer byte-for-byte. |
+| Original owner state | The selected-vault and device files were restored byte-for-byte. Raw preference storage matched, including motion, sound and volume. Testing used a disposable vault and the original closed application state was restored. |
+
+The installer is `src-tauri/target/release/bundle/nsis/Synapse_0.9.0_x64-setup.exe` (5,981,544 bytes). Its SHA-256 is `45c2ae03b31f0e7621b8d12fbdd8c44dd71f2041f3afe69f4a318b80f024a49c`. The installed executable’s SHA-256 is `f4d963ca0e5a3bcf9af5b5adf58a6bd39acb3f5ffa3137eee57c4c1b3487a64f`.
+
+The private evidence directory is `.local/native-acceptance-0.9.0/`. The three native recording stems are `Synapse-0.9.0-native-cold-startup`, `Synapse-0.9.0-native-tray-first-foreground` and `Synapse-0.9.0-native-alt-tab-return`, each available as MP4 and GIF. The MP4s retain source timing within 0.51 ms and include short end holds. Their playback lengths are 5.29 s, 5.30 s and 1.11 s respectively. The 25 fps GIFs and all MP4s decoded successfully. The media use explicit video range to preserve the near-black workspace in Windows playback. The browser fixture report is separate at `.local/swarm-0.9.0/browser-report.json`.
+
 ## 0.8.1 — 17 November 2026
 
 Installed Synapse **0.8.1** fixes the native show/readiness failure and has actual cold-launch, tray-launch and operating-system Alt-Tab recordings. **Native acceptance remains incomplete:** input during either effect, a deliberately sub-500 ms focus bounce and rapid qualified cycles inside the 1500 ms cooldown have browser coverage but have not passed precisely timed native tests. Ordinary native returns, native dialogs and actual CodeMirror preservation passed. This is a local verification and repair pass; nothing was published.
