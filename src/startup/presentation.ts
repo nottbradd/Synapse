@@ -22,7 +22,14 @@ export interface GraphPresentation {
   clip: Rect;
   nodes: PresentationNode[];
   edges: PresentationEdge[];
+  // Only the startup completion beat requests the bounded visible outlines.
+  outlines: () => NodeOutline[];
   valid: () => boolean;
+}
+export interface NodeOutline extends Point {
+  radius: number;
+  color: string;
+  shape: "diamond" | "junction" | "port";
 }
 const sources = new Map<HTMLElement, () => GraphPresentation | undefined>();
 export function registerPresentation(

@@ -920,6 +920,22 @@ export class GraphScene {
       clip,
       nodes,
       edges,
+      outlines: () =>
+        candidates.map((n) => {
+          const point = project(n, f, this.view);
+          return {
+            x: point.x + offset.x,
+            y: point.y + offset.y,
+            radius: nodeScreenRadius(n, f.zoom),
+            color: this.colors.get(n.subject_id) ?? "#95a6b8",
+            shape:
+              n.neighbors < 2 && n.role !== "subnetwork"
+                ? "diamond"
+                : n.neighbors >= 5
+                  ? "port"
+                  : "junction",
+          };
+        }),
       valid: () =>
         element.isConnected &&
         key === this.topology.key &&

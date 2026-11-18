@@ -28,6 +28,49 @@ for (const name of ["cold-final", "tray-final", "return-final"]) {
   const measure = r.measures
     .filter((e) => e.name === `synapse.${effect}`)
     .at(-1);
+  assert.equal(
+    r.version,
+    source.version,
+    `${name}: installed version differs from the requested release`,
+  );
+  assert.ok(
+    measure &&
+      r.marks.some(
+        (m) =>
+          m.name === `synapse.${effect}:finish:complete` &&
+          Math.abs(m.at - measure.startTime - measure.duration) < 2,
+      ),
+    `${name}: missing completed effect`,
+  );
+  assert.equal(r.gate, null);
+  assert.equal(r.concealed + r.overlays + r.audio, 0);
+  if (effect === "startup") {
+    const info = r.marks.find((m) => m.name === "synapse.startup:start").detail;
+    assert.equal(info.agents, 14);
+    assert.equal(info.orbitEnd, 900);
+    assert.equal(info.constructionEnd, 4060);
+    assert.ok(
+      info.graphLabels > 0 &&
+        measure.duration >= 4400 &&
+        measure.duration <= 4900,
+    );
+  } else {
+    assert.ok(measure.duration >= 260 && measure.duration <= 400);
+    assert.deepEqual(
+      r.audioStarts,
+      [],
+      "The recorded return must not start a sound",
+    );
+    assert.equal(r.before.canvasHash, r.after.canvasHash);
+    assert.deepEqual(r.before.editor, r.after.editor);
+    assert.equal(r.after.measures.length - r.before.measures.length, 1);
+    assert.ok(r.native.some((s) => !s.focused) && r.native.at(-1)?.focused);
+    const active = r.frames.filter((f) => f.returning);
+    assert.ok(
+      active.length &&
+        active.every((f) => !f.cursors && !f.concealed && !f.gate),
+    );
+  }
   const epoch = (r.timeOrigin + measure.startTime) / 1000;
   const start = epoch - 0.08,
     end = epoch + measure.duration / 1000 + 0.75;
@@ -75,6 +118,18 @@ for (const name of ["cold-final", "tray-final", "return-final"]) {
     "-i",
     concatPath,
     "-an",
+    // WebView2's JPEGs are full-range. Tag a real conversion to video range
+    // so Windows video playback preserves the near-black canvas and edges.
+    "-vf",
+    "scale=in_range=full:out_range=limited:in_color_matrix=bt601:out_color_matrix=bt709,format=yuv420p",
+    "-color_range",
+    "tv",
+    "-colorspace",
+    "bt709",
+    "-color_primaries",
+    "bt709",
+    "-color_trc",
+    "iec61966-2-1",
     "-c:v",
     "libx264",
     "-preset",
@@ -122,6 +177,7 @@ for (const name of ["cold-final", "tray-final", "return-final"]) {
     "NUL",
   ]);
   await writeFile(path.join(dir, "decode.log"), decoded);
+  assert.match(decoded, /yuv420p\(tv, bt709/);
   const actual = [
     ...decoded.matchAll(/\bn:\s*\d+\s+pts:.*?pts_time:([-\d.]+)/g),
   ].map((m) => Number(m[1]));
@@ -139,7 +195,9 @@ for (const name of ["cold-final", "tray-final", "return-final"]) {
   assert.equal([...decoded.matchAll(/Stream #0:\d.*?Audio:/g)].length, 0);
   run(["-loglevel", "error", "-i", `${stem}.gif`, "-f", "null", "NUL"]);
   const times =
-    effect === "startup" ? [0.15, 1.1, 2.4, 3.7] : [0.14, 0.24, 0.7];
+    effect === "startup"
+      ? [0.48, 1.2, 1.8, 2.45, 3.2, 4.25, measure.duration / 1000 + 0.2]
+      : [0.14, 0.24, 0.7];
   for (const [i, t] of times.entries())
     run([
       "-loglevel",

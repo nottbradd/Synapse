@@ -229,7 +229,9 @@ export default function Sidebar({
         ) : (
           <>
             <div className="vault-heading" data-swarm="box">
-              <strong title={vault.root}>{vault.name}</strong>
+              <strong title={vault.root} data-swarm-label="">
+                {vault.name}
+              </strong>
               <button
                 title="Open vault"
                 aria-label="Open vault"
@@ -243,6 +245,7 @@ export default function Sidebar({
               <Search size={16} />
               <input
                 id="note-search"
+                data-swarm-label=""
                 aria-label="Search notes"
                 placeholder="Search notes"
                 value={query}
@@ -261,19 +264,19 @@ export default function Sidebar({
               onClick={() => onNewNote()}
             >
               <Plus size={17} />
-              New note
+              <span data-swarm-label="">New note</span>
             </button>
             <nav className="hierarchy" aria-label="Neurons and subjects">
               <button
                 className={`all-row ${!location.neuron_id ? "selected" : ""}`}
-                data-swarm="duplicate"
+                data-swarm="box"
                 aria-current={!location.neuron_id ? "page" : undefined}
                 onClick={() =>
                   selectLocation({ neuron_id: null, subject_id: null })
                 }
               >
                 <Layers size={16} />
-                All Neurons
+                <span data-swarm-label="">All Neurons</span>
               </button>
               {org.neurons.map((neuron) => (
                 <div className="neuron-group" key={neuron.id}>
@@ -284,6 +287,7 @@ export default function Sidebar({
                     {disclosure(neuron.id, neuron.name)}
                     <button
                       className="row-name"
+                      data-swarm-label=""
                       title={neuron.name}
                       aria-current={
                         location.neuron_id === neuron.id && !location.subject_id
@@ -321,6 +325,7 @@ export default function Sidebar({
                               />
                               <button
                                 className="row-name"
+                                data-swarm-label=""
                                 title={subject.name}
                                 aria-current={
                                   location.subject_id === subject.id
@@ -394,11 +399,11 @@ export default function Sidebar({
               <div className="study-entries">
                 <button onClick={() => onStudy("create")}>
                   <Plus size={17} />
-                  Create
+                  <span data-swarm-label="">Create</span>
                 </button>
                 <button onClick={() => onStudy("library")}>
                   <BookOpen size={17} />
-                  Study library
+                  <span data-swarm-label="">Study library</span>
                   {remindersReady > 0 && <span>{remindersReady}</span>}
                 </button>
               </div>
@@ -417,7 +422,7 @@ export default function Sidebar({
                 }
               >
                 <BookOpen size={17} />
-                Review <span>{w.due}</span>
+                <span data-swarm-label="">Review</span> <span>{w.due}</span>
               </button>
               <button
                 title="Refresh vault"

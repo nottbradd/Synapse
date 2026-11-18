@@ -7,6 +7,7 @@ export async function startProbe(page) {
       events: [],
       native: [],
       audio: 0,
+      audioStarts: [],
     });
     const snapshot = () => ({
       at: performance.now(),
@@ -36,6 +37,18 @@ export async function startProbe(page) {
         return Reflect.construct(target, args, receiver);
       },
     });
+    const audioSources = [AudioBufferSourceNode, OscillatorNode].map((type) => {
+      const descriptor = Object.getOwnPropertyDescriptor(
+        type.prototype,
+        "start",
+      );
+      const start = type.prototype.start;
+      type.prototype.start = function (...args) {
+        q.audioStarts.push({ kind: type.name, at: performance.now() });
+        return Reflect.apply(start, this, args);
+      };
+      return { type, descriptor };
+    });
     const record = (e) => {
       q.events.push({ kind: e.type, key: e.key, ...snapshot() });
     };
@@ -60,7 +73,52 @@ export async function startProbe(page) {
       // Keep recent evidence even if the operator takes a while to return.
       // Trim in batches so this passive observer does not shift on every frame.
       if (q.frames.length >= 18000) q.frames.splice(0, 6000);
-      q.frames.push(snapshot());
+      const sample = snapshot();
+      q.frames.push(sample);
+      if (sample.startup && !q.schedule) {
+        const plan = globalThis[Symbol.for("synapse.startup.controller")]?.plan;
+        if (plan)
+          q.schedule = {
+            orbitEnd: plan.orbitEnd,
+            constructionEnd: plan.constructionEnd,
+            duration: plan.duration,
+            centre: plan.centre,
+            scale: plan.scale,
+            actors: plan.agents.map(
+              ({ id, name, radius, speed, departure, gone }) => ({
+                id,
+                name,
+                radius,
+                speed,
+                departure,
+                gone,
+              }),
+            ),
+            tasks: plan.tasks.map(
+              ({
+                id,
+                kind,
+                agent,
+                start,
+                work,
+                end,
+                typing,
+                anchor,
+                destination,
+              }) => ({
+                id,
+                kind,
+                agent,
+                start,
+                work,
+                end,
+                characters: typing.length,
+                anchor,
+                destination,
+              }),
+            ),
+          };
+      }
       q.raf = requestAnimationFrame(frame);
     };
     q.raf = requestAnimationFrame(frame);
@@ -98,6 +156,11 @@ export async function startProbe(page) {
         ),
       );
       window.AudioContext = q.originalAudio;
+      for (const { type, descriptor } of audioSources) {
+        if (descriptor)
+          Object.defineProperty(type.prototype, "start", descriptor);
+        else delete type.prototype.start;
+      }
     };
   });
 }
@@ -107,9 +170,11 @@ export async function stopProbe(page) {
     q.stop();
     return {
       frames: q.frames,
+      schedule: q.schedule,
       events: q.events,
       native: q.native,
       audio: q.audio,
+      audioStarts: q.audioStarts,
       timeOrigin: performance.timeOrigin,
       marks: performance
         .getEntriesByType("mark")

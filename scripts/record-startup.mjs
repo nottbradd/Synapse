@@ -146,8 +146,8 @@ assert.ok(
   JSON.stringify(result.marks),
 );
 assert.ok(
-  result.measures.at(-1).duration >= (name === "welcome" ? 500 : 3200) &&
-    result.measures.at(-1).duration <= 3800,
+  result.measures.at(-1).duration >= (name === "welcome" ? 500 : 4400) &&
+    result.measures.at(-1).duration <= 4900,
 );
 assert.equal(result.overlay, 0);
 assert.equal(result.hidden, 0);

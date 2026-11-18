@@ -427,7 +427,7 @@ pre {
   justify-content: flex-start;
   color: var(--text);
 }
-.review-entry > span {
+.review-entry > span:not([data-swarm-label]) {
   margin-left: auto;
   color: var(--muted);
 }
@@ -1314,7 +1314,7 @@ kbd {
 .editor-shell {
   will-change: transform;
 }
-.review-entry > span,
+.review-entry > span:not([data-swarm-label]),
 .graph-controls > span,
 .review-meta,
 .editor-status {
@@ -1378,7 +1378,7 @@ kbd {
   padding: 10px 8px;
   color: var(--text);
 }
-.study-entries span {
+.study-entries span:not([data-swarm-label]) {
   margin-left: auto;
   color: var(--muted);
 }

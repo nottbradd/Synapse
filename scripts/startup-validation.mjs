@@ -239,7 +239,7 @@ try {
       await page.evaluate(() => window.qa.fixture.ready());
     }
     if (name.startsWith("hidden-")) {
-      await page.waitForTimeout(4100);
+      await page.waitForTimeout(5050);
       assert.equal(await page.locator(".swarm-overlay").count(), 0);
       assert.equal(await page.evaluate(() => window.qa.claims), 0);
       await page.evaluate((name) => {
@@ -488,7 +488,7 @@ try {
             .graph()
             ?.nodes.map((n) => ({ id: n.id, x: n.x, y: n.y })),
         })));
-        assert.ok(plan.agents.length <= 9 && plan.tasks.length <= 34);
+        assert.ok(plan.agents.length <= 14 && plan.tasks.length <= 64);
         for (const task of plan.tasks)
           for (const d of task.dependencies)
             assert.ok(task.work >= plan.tasks.find((t) => t.id === d).end);
@@ -511,10 +511,59 @@ try {
           "none",
         );
         if (name === "full") {
-          assert.ok(plan.agents.length >= 8, JSON.stringify(plan.agents));
-          assert.equal(
-            new Set(plan.agents.map((a) => JSON.stringify(a.entrance))).size,
-            plan.agents.length,
+          assert.equal(plan.agents.length, 14);
+          assert.equal(plan.orbitEnd, 900);
+          assert.equal(plan.constructionEnd, 4060);
+          assert.equal(plan.duration, 4460);
+          const names = await page.locator(".swarm-name").allTextContents();
+          assert.equal(new Set(names).size, 14);
+          for (const name of ["Ohm", "Volta", "Hertz", "Joule"])
+            assert.ok(names.includes(name));
+          assert.equal(new Set(plan.agents.map((a) => a.radius)).size, 14);
+          assert.ok(
+            plan.agents.some((a) => a.speed < 0) &&
+              plan.agents.some((a) => a.speed > 0),
+          );
+          for (const a of plan.agents) {
+            const own = plan.tasks.filter((t) => t.agent === a.id);
+            const first = own[0],
+              angle = a.angle + (a.speed * first.start) / 1000;
+            assert.ok(first.start >= plan.orbitEnd);
+            assert.ok(
+              Math.hypot(
+                first.from.x - plan.centre.x - a.radius * Math.cos(angle),
+                first.from.y - plan.centre.y - 0.6 * a.radius * Math.sin(angle),
+              ) < 0.001,
+            );
+            assert.equal(a.departure, own.at(-1).end);
+            assert.ok(Math.abs(a.gone - a.departure - 160) < 0.001);
+          }
+          for (const kind of [
+            "guide",
+            "box",
+            "text",
+            "duplicate",
+            "node",
+            "connection",
+          ])
+            assert.ok(plan.tasks.some((t) => t.kind === kind));
+          const graphLabels = plan.tasks.filter(
+            (t) => t.kind === "text" && t.node !== undefined,
+          );
+          assert.ok(graphLabels.length >= 3);
+          for (const t of graphLabels) {
+            assert.ok(t.dependencies.includes(`node-${t.node}`));
+            assert.equal(t.typing.length, t.run.text.length);
+            assert.ok(
+              t.typing.every(
+                (time, i) => time > 0 && (i === 0 || time > t.typing[i - 1]),
+              ),
+            );
+          }
+          assert.ok(
+            plan.tasks.some(
+              (t) => t.id.startsWith("caption-") && t.typing.length > 2,
+            ),
           );
           assert.ok(
             new Set(plan.tasks.map((t) => Math.round(t.end - t.work))).size > 8,
@@ -576,15 +625,15 @@ try {
           await page.evaluate(() => window.qa.controller.foreground(false));
         if (name === "css-fallback") {
           await page.evaluate(() => window.qa.controller.release());
-          await page.waitForTimeout(1300);
+          await page.waitForTimeout(3950);
           assert.equal(
             await page
               .locator("#first")
               .evaluate((e) => getComputedStyle(e).opacity),
             "0",
-            "Old 1.2s fallback must not reveal",
+            "The former 3.8s watchdog must not reveal a running v3 intro",
           );
-          await page.waitForTimeout(2600);
+          await page.waitForTimeout(1150);
           assert.equal(
             await page
               .locator("#first")
@@ -642,7 +691,7 @@ try {
         JSON.stringify(result),
       );
       if (name !== "css-fallback" && result.duration)
-        assert.ok(result.duration <= 3800);
+        assert.ok(result.duration <= 4900);
       if (
         [
           "full",
@@ -665,7 +714,7 @@ try {
           JSON.stringify(result),
         );
         assert.ok(
-          result.duration >= 3200 && result.duration <= 3650,
+          result.duration >= 4400 && result.duration <= 4620,
           JSON.stringify(result),
         );
         assert.deepEqual(

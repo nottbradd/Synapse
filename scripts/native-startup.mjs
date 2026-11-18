@@ -3,6 +3,7 @@ import { chromium } from "@playwright/test";
 import { spawn } from "node:child_process";
 import { mkdir, writeFile, access, readFile } from "node:fs/promises";
 import path from "node:path";
+import assert from "node:assert/strict";
 import { startProbe, stopProbe } from "./native-probe.mjs";
 const mode = process.argv[2] ?? "tray",
   name = process.argv[3] ?? mode;
@@ -47,6 +48,12 @@ const invoke = (command, args = {}) =>
     { command, args },
   );
 const version = await invoke("plugin:app|version");
+assert.equal(page.url(), "http://tauri.localhost/");
+assert.equal(
+  version,
+  source.version,
+  "Installed Synapse version must match the source before recording",
+);
 try {
   await access(path.join(base, "original-preferences.json"));
 } catch {

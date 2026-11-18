@@ -229,13 +229,10 @@ export default function Graph({
             <ArrowLeft size={17} /> Back
           </button>
         )}
-        <h1
-          title={title}
-          data-swarm={scope.kind === "overview" ? "text" : "box"}
-        >
+        <h1 title={title} data-swarm="text">
           <TransitionTitle text={title ?? "All Neurons"} />
         </h1>
-        <span data-swarm="box">
+        <span data-swarm="text">
           {scope.kind === "overview"
             ? `${scene.topology.visibleNodes.length} subnetworks`
             : scope.kind === "topic"

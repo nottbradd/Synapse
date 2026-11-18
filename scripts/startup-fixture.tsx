@@ -116,17 +116,19 @@ export function mountWorkspace(
                     Synapse demo
                   </div>
                   <label className="search" data-swarm="box">
-                    <input placeholder="Search notes" />
+                    <input data-swarm-label="" placeholder="Search notes" />
                   </label>
                 </>
               )}
               <button id="first" className="new-note" data-swarm="box">
-                {options.collapsed ? "+" : "New note"}
+                <span data-swarm-label="">
+                  {options.collapsed ? "+" : "New note"}
+                </span>
               </button>
               {!options.collapsed && (
                 <nav className="hierarchy">
-                  <button className="all-row selected" data-swarm="duplicate">
-                    All Neurons
+                  <button className="all-row selected" data-swarm="box">
+                    <span data-swarm-label="">All Neurons</span>
                   </button>
                   <div className="tree-row neuron-row" data-swarm="box">
                     Study workspace
@@ -141,7 +143,7 @@ export function mountWorkspace(
                         className="subject-dot"
                         style={{ background: s.color }}
                       />
-                      {s.short}
+                      <span data-swarm-label="">{s.short}</span>
                     </div>
                   ))}
                 </nav>

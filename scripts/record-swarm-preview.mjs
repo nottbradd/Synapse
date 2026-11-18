@@ -1,17 +1,20 @@
 // Browser fixture review only. These clips are NOT native launch/Alt-Tab evidence.
 import { chromium } from "@playwright/test";
 import { createServer } from "vite";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
 import assert from "node:assert/strict";
+const { version } = JSON.parse(await readFile("package.json", "utf8"));
+const cases = process.argv[2] ? [process.argv[2]] : ["startup", "return"];
+assert.ok(cases.every((name) => name === "startup" || name === "return"));
 const server = await createServer({
   server: { host: "127.0.0.1", port: 1432, strictPort: true },
 });
 await server.listen();
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 try {
-  for (const name of ["startup", "return"]) {
-    const out = path.resolve(`.local/release-0.8.0/browser-${name}`);
+  for (const name of cases) {
+    const out = path.resolve(`.local/release-${version}/browser-${name}`);
     await mkdir(out, { recursive: true });
     const context = await browser.newContext({
       viewport: { width: 1440, height: 900 },

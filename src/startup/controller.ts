@@ -1,6 +1,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { createOverlay } from "./overlay";
-import { SWARM, snapshot, type Target } from "./geometry";
+import { createOverlay } from "./construction";
+import { SWARM, captionSource, snapshot, type Target } from "./geometry";
 import { graphPresentation, type GraphPresentation } from "./presentation";
 import { makePlan, type Plan } from "./plan";
 import { observeLayout } from "./observe";
@@ -352,22 +352,30 @@ export class StartupController {
             nodes: this.graph?.nodes.length ?? 0,
             edges: this.graph?.edges.length ?? 0,
             duration: this.plan.duration,
+            orbitEnd: this.plan.orbitEnd,
+            constructionEnd: this.plan.constructionEnd,
+            graphLabels: this.plan.tasks.filter(
+              (t) => t.kind === "text" && t.node !== undefined,
+            ).length,
             preparation: this.started - this.readyAt,
           },
         });
-        for (const t of this.targets)
+        for (const t of this.targets) {
           this.conceal(
             t.element,
             t.kind === "surface"
               ? "data-swarm-surface-hidden"
               : "data-swarm-hidden",
           );
+          for (const caption of t.captions)
+            if (caption.element !== t.element) this.conceal(caption.element);
+        }
         if (this.graph) this.conceal(this.graph.element);
         this.overlay = createOverlay(
           this.targets,
           this.graph,
           this.plan,
-          (i) => this.reveal(this.targets[i].element),
+          (element) => this.reveal(element),
           () => {
             if (this.graph) this.reveal(this.graph.element);
           },
@@ -391,10 +399,11 @@ export class StartupController {
         return;
       }
       if (
-        this.targets.some(
-          (t) =>
-            t.kind === "text" &&
-            t.element.textContent?.trim() !== t.text.join(""),
+        this.targets.some((t) =>
+          t.captions.some(
+            (c) =>
+              !c.element.isConnected || captionSource(c.element) !== c.source,
+          ),
         )
       ) {
         this.finish("content-change");
