@@ -51,20 +51,20 @@ export interface Plan {
   graphEnd: number;
 }
 const roster = [
-  ["Ohm", "#ff6b4a"],
-  ["Volta", "#a78bfa"],
-  ["Hertz", "#38bdf8"],
-  ["Watt", "#34d399"],
-  ["Tesla", "#fb7185"],
-  ["Henry", "#fbbf24"],
-  ["Farad", "#818cf8"],
-  ["Gauss", "#f472b6"],
-  ["Weber", "#4ade80"],
-  ["Ampere", "#22d3ee"],
-  ["Kelvin", "#fb923c"],
-  ["Joule", "#2dd4bf"],
-  ["Maxwell", "#c084fc"],
-  ["Siemens", "#60a5fa"],
+  ["Ohm", "#713138"],
+  ["Volta", "#65505d"],
+  ["Hertz", "#50484d"],
+  ["Watt", "#656055"],
+  ["Tesla", "#84484e"],
+  ["Henry", "#695749"],
+  ["Farad", "#5f545d"],
+  ["Gauss", "#764750"],
+  ["Weber", "#5e5952"],
+  ["Ampere", "#504c52"],
+  ["Kelvin", "#775647"],
+  ["Joule", "#665d56"],
+  ["Maxwell", "#715361"],
+  ["Siemens", "#565058"],
 ] as const;
 export function random(seed: number) {
   return () => {

@@ -6,10 +6,62 @@ use std::sync::atomic::{AtomicBool, Ordering};
 // that Windows granted focus. The frontend still queries native focus/visibility.
 pub fn show(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     use tauri::Emitter;
+    #[cfg(windows)]
+    tint_caption(window);
     window.show()?;
     let _ = window.unminimize();
     let _ = window.set_focus();
     window.emit("synapse-window-shown", ())
+}
+
+#[cfg(windows)]
+fn tint_caption(window: &tauri::WebviewWindow) {
+    use tauri::Manager;
+    use windows::Win32::{
+        Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_CAPTION_COLOR, DWMWA_COLOR_DEFAULT},
+        UI::{
+            Accessibility::{HCF_HIGHCONTRASTON, HIGHCONTRASTW},
+            WindowsAndMessaging::{SystemParametersInfoW, SPI_GETHIGHCONTRAST},
+        },
+    };
+
+    let background = window
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|config| config.label == window.label())
+        .and_then(|config| config.background_color);
+    let (Some(background), Ok(hwnd)) = (background, window.hwnd()) else {
+        return;
+    };
+    let mut contrast = HIGHCONTRASTW {
+        cbSize: std::mem::size_of::<HIGHCONTRASTW>() as u32,
+        ..Default::default()
+    };
+    // SPI fills this sized structure synchronously. Leave contrast themes in Windows' control.
+    let queried = unsafe {
+        SystemParametersInfoW(
+            SPI_GETHIGHCONTRAST,
+            contrast.cbSize,
+            Some((&raw mut contrast).cast()),
+            Default::default(),
+        )
+    };
+    let colour = if queried.is_ok() && !contrast.dwFlags.contains(HCF_HIGHCONTRASTON) {
+        u32::from_le_bytes([background.0, background.1, background.2, 0])
+    } else {
+        DWMWA_COLOR_DEFAULT
+    };
+    // DWM copies the COLORREF during the call. Older Windows retains the native light theme.
+    unsafe {
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_CAPTION_COLOR,
+            (&raw const colour).cast(),
+            std::mem::size_of_val(&colour) as u32,
+        );
+    }
 }
 
 pub struct Launch {

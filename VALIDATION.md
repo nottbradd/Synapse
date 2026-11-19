@@ -1,5 +1,81 @@
 # Synapse validation
 
+## Synapse v1 Windows release
+
+The public v1 installer includes the frosted workspace, warm-white Windows title bar and transparent application icon. Its filename is `Synapse_1.0.0_x64-setup.exe`. Use the [v1 release checksums](https://github.com/nottbradd/Synapse/releases/download/v1.0.0/SHA256SUMS.txt) to verify that download. The dated entries below record the hashes of earlier review builds.
+
+On Windows 11 at 100% display scaling, Explorer's 44 × 48 taskbar button still showed the old black tile when the Start menu shortcut inherited its icon from the executable. An in-place installer update assigned the bundled icon to the existing shortcut. A desktop capture of that same `com.synapse.study` button after relaunch showed the transparent three-node branch. The shortcut retained its target, arguments and working directory.
+
+## White frosted glass — 19 November 2026
+
+Verified the standard Windows x64 **1.0.0** installer on Windows 11. WebView2 ran the executable extracted from that installer in a disposable profile. The desktop loaded the production JavaScript, CSS, layout worker and bundled backdrop. The original backdrop and its packaged copy have identical SHA-256 digests.
+
+| Desktop check | Result |
+| --- | --- |
+| Supplied Network Lab | 4,096 notes and 10,688 unique links at 100%. Mechanics has 56 direct neighbours. Hover transferred the oxblood highlight, leaving the note selected. Moving away restored all 56 links. Linked-note navigation and Back passed. |
+| Scoped graphs | The six-note Physics view and the All Neurons overview drew near-black links and small subject marks. Hovering the Physics mark or a Physics note drew oxblood on the Canvas. Moving away cleared that highlight. |
+| Frost | Computed blur was 23 px on the sidebar, 29 px on the drawer and 17 px on the graph controls. Paired captures confirmed the underlying network affected pixels through both panels. Emulating reduced transparency switched all three to solid warm white. |
+| Narrow window | Resized the native client to 900 × 640 with Mechanics open. Its header and controls fit beside the reading drawer. |
+| Reading and editing | Verified Edit, Split and Read. CodeMirror applied its warm-white surface and ink text. Revealing a Physics review answer displayed the rating choices. Preferences opened and closed. |
+
+The foreground colour of ordinary links is `#29252A`. The focus outline and direct links use `#713138`. The regression for a triangle of notes checks that an edge joining two neighbours keeps its ordinary colour. Canvas labels have a warm-white halo. Calculated against a black underlay, the halo gives ordinary label ink a 7.2:1 contrast ratio and oxblood label ink 6.8:1.
+
+TypeScript, ESLint, 84 frontend unit tests, the All Notes browser integration checks, all 58 startup and return browser scenarios, and the production Tauri build passed. Rust passed 48 tests with one existing ignored test. Clippy passed with warnings denied.
+
+The unsigned installer is **7,451,833 bytes**. Its SHA-256 is `060a6996c7078154912d8899ae1f8bef12ee90ca318f61d7aa1b441b72c8077e`.
+
+[Full map](docs/images/frosted-glass/all-notes.png) · [Mechanics](docs/images/frosted-glass/mechanics.png) · [Physics](docs/images/frosted-glass/physics.png) · [Narrow window](docs/images/frosted-glass/narrow.png) · [Review](docs/images/frosted-glass/review.png)
+
+## Synapse v1 — 19 November 2026
+
+The local review build promotes the All Notes application from `4edc7a312476d78b098f8fc6ffd9251328d57b42` to **1.0.0**. The release title is **Synapse v1** and the intended Git tag is `v1.0.0`. The application changes consist of version fields in the npm package and lockfile, Rust crate and lockfile, and Tauri configuration.
+
+| Windows x64 review artifact | Verified value |
+| --- | --- |
+| Installer | `Synapse_1.0.0_x64-setup.exe` |
+| Size | 5,989,941 bytes |
+| Installer SHA-256 | `2e845fa88696dd4ef6db342ee76aac3c53054d411c072ade4b9f41cc674fe3ea` |
+| Windows version resources | Product and file version 1.0.0 on both the installer and its executable payload |
+| Package identity | Synapse · `com.synapse.study` · current-user NSIS installer · unsigned |
+
+The installer passed archive integrity checking. Its generated NSIS script matched the 0.10.0 script after substituting the two version declarations. This preserves the registered install location, upgrade detection, executable name and uninstall key. All 11 archive paths matched the earlier bundle.
+
+On Windows 11, the regular 0.9.0 executable saved the Network Lab vault, full motion, muted sound and a disabled startup animation in a disposable profile. The exact `synapse.exe` extracted from the v1 installer then ran from the same application path. Both versions resolved the same native roaming and local storage directories inside the profile. On launch, v1 restored that vault and all three preferences.
+
+All Notes displayed **4,096 notes and 10,688 links**. Mechanics opened at **255%** with **56 direct neighbours**. Back restored the full map at 100% and then the previous All Neurons scope. Back from the linked-note view restored the Mechanics drawer at 255%. The production build, all 82 frontend tests and 48 Rust tests passed. The opt-in live provider test was skipped.
+
+## 0.10.0 — All Notes, 19 November 2026
+
+### Installed Windows desktop
+
+Windows 11 Pro x64, WebView2 157, 1440 × 900 at 100%. The production NSIS QA installation used a separate product name, application identifier and disposable profile. The Rust indexer read the supplied Network Lab vault directly from disk. It resolved **4,096 Markdown notes and 10,688 unique links**, with all notes assigned to the single **Network Lab** subject. The layout found **27 communities**. Mechanics had **56 direct neighbours**.
+
+From the sidebar click to the first usable map took **826 ms** on the final QA build. Worker creation to receipt of the settled coordinates took **750 ms**. The installed app opened Mechanics at 255%, followed its Momentum WikiLink inside All Notes, drilled into the existing 56-concept linked view and returned to the same Mechanics drawer. Closing the drawer kept the zoom. Fit returned to 100%. Returning from the linked view reused the first worker result.
+
+The native six-note fixture contained four subject colours and an isolated note. Cancelling navigation kept an unsaved edit. Saving plain text kept seven links. Saving a new WikiLink raised the count to eight. The empty vault displayed zero notes and a new-note action. These vault-switch checks used the native open command and restored the vault on reload. The browser checks below exercised the sidebar’s folder-choice flow.
+
+The screenshots show the installed app. Its loaded JavaScript, CSS and worker filenames matched all three content-hashed assets from the standard production build. [Full Network Lab map](docs/images/all-notes.png) · [Mechanics in the note drawer](docs/images/all-notes-mechanics.png)
+
+### Browser interaction and performance
+
+Headless Edge ran the React workspace, dedicated layout worker and Canvas renderer with fixture IPC. At 1600 × 960 the overview showed ten measured hub labels. Zooming revealed 26. Pointer-anchored zoom preserved the world point to numerical precision. Hover, pointer leave, panning and zooming produced no sound actions. Clicking Mechanics issued one camera target and produced 57 intermediate drawer frames in the recorded run. Back restored the exact camera and editor state. Closing the drawer preserved world framing.
+
+A text-only save retained the same position buffer and camera. Adding a resolved pair started a new worker. Switching vaults while another layout was in flight left the new empty vault visible. Back to an existing linked-note view also restored its zoomed camera, 480 px split drawer, selection and 57-node scope. The minimum-width 900 px window kept the picker and all navigation controls inside the space beside the drawer.
+
+The mixed fixture assigned real note paths to four study subjects across two Neurons and included an unassigned isolated note. Its **4,097 notes and 10,688 links** included **244 cross-subject pairs**. A strongly linked community crossed subject boundaries. The selected Physics review queue kept its single card through All Notes navigation. Returning to All Neurons exposed both due cards. Reduced motion settled focus immediately. [Multi-subject browser capture](docs/images/all-notes-subjects.png)
+
+In one 100-draw pan and wheel run, Canvas drawing took **2.0 ms median and 3.5 ms p95** on the browser main thread. The initial browser worker took **777 ms** including module loading. The note picker returned the Mechanics result in **24 ms**. The settled canvas drew **zero frames during 1.5 seconds**. These timings measure this machine and dataset. A simulated foreground return used three real map edges and completed in 281 ms. Physical Windows Alt-Tab timing was last measured for 0.9.0.
+
+The TypeScript suite passed all 82 tests. Rust passed 48 tests with one opt-in provider test skipped. Typechecking, ESLint, Clippy with warnings denied and all 58 browser startup and foreground-return cases passed.
+
+The standard unsigned NSIS installer `Synapse_0.10.0_x64-setup.exe` passed its archive integrity check. The payload reports version 0.10.0 and x64 machine type. The installer is 5,995,449 bytes and its SHA-256 is `c3eea0927ecc80750e677531dbb195481cc9f86f022d40e747a478592fffca7c`.
+
+For repeatable installed checks, open a fresh QA instance on an extracted copy of the supplied Network Lab and enable its loopback WebView2 debugging port. The following command verifies the open vault, exercises navigation and writes captures to the specified directory.
+
+```powershell
+node scripts/all-notes-desktop.mjs http://127.0.0.1:9237 "<extracted Network Lab folder>" ".local/network-lab-captures"
+```
+
 ## 0.9.0 — 18 November 2026
 
 Installed Synapse 0.9.0 played the v3 startup in **4461.7 ms** on a populated desktop. The recorded Windows Alt-Tab return lasted **281.5 ms**. Application source is `fb5d3b7a49f11e83f8ff3ed62108a69d0eca9379` on the local branch `codex/startup-v3`, based on the 0.8.1 native show/focus repair. The only subsequent change is this validation record. The release and its recordings stayed local.

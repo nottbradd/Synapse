@@ -1,3 +1,4 @@
+import { graphInk } from "../interaction/graphPalette";
 import { clamp, smooth, SWARM, type Rect } from "./geometry";
 import type { GraphPresentation } from "./presentation";
 import { pointOn } from "../interaction/connections";
@@ -29,7 +30,7 @@ export function createReturnOverlay(chrome: Rect[], graph?: GraphPresentation) {
       const progress = clamp(elapsed / SWARM.returnEnd),
         alpha = Math.sin(Math.PI * progress) * 0.58;
       ctx.save();
-      ctx.strokeStyle = `rgba(176,205,216,${alpha})`;
+      ctx.strokeStyle = `rgba(113,49,56,${alpha})`;
       ctx.lineWidth = 0.8;
       chrome.slice(0, 3).forEach((r, i) => {
         const p = clamp((progress - i * 0.035) / 0.75),
@@ -49,10 +50,9 @@ export function createReturnOverlay(chrome: Rect[], graph?: GraphPresentation) {
         );
         ctx.clip();
         graph.edges.slice(0, 3).forEach((edge, i) => {
-          const p = (elapsed - 12 - i * 14) / 175,
-            color = graph.nodes.find((n) => n.id === edge.target)!.color;
-          ctx.strokeStyle = color;
-          ctx.fillStyle = color;
+          const p = (elapsed - 12 - i * 14) / 175;
+          ctx.strokeStyle = graphInk.focus;
+          ctx.fillStyle = graphInk.focus;
           ctx.globalAlpha = 0.7;
           if (p >= 0 && p < 1) {
             ctx.lineWidth = 1.3;

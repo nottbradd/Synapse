@@ -1,6 +1,6 @@
 [package]
 name = "synapse"
-version = "0.9.0"
+version = "1.0.0"
 edition = "2021"
 license = "GPL-3.0-only"
 description = "Local Markdown knowledge and revision workspace"
@@ -41,6 +41,9 @@ keyring = { version = "3.6", default-features = false, features = ["windows-nati
 tokio = { version = "1", features = ["macros", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 tauri-plugin-autostart = "2"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_Graphics_Dwm", "Win32_UI_Accessibility", "Win32_UI_WindowsAndMessaging"] }
 
 [profile.release]
 lto = true

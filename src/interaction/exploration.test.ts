@@ -9,6 +9,7 @@ import {
 import { network, NetworkMotion, placements } from "./network";
 import { GraphTopology, type SceneNode } from "./topology";
 import { nodeVoice } from "./note";
+import { allNotesData } from "./allNotesData";
 import { LayoutMotion, project, usable } from "./motion";
 
 const snapshot = (): Snapshot => ({
@@ -54,6 +55,72 @@ const snapshot = (): Snapshot => ({
 });
 const frame = { x: 31, y: -19, zoom: 0.86, drawer: 0 };
 describe("bounded knowledge views", () => {
+  it("indexes every note by path, deduplicates resolved pairs and caches by topology", () => {
+    const s = snapshot();
+    const wholeVault = { kind: "all-notes" } as const;
+    s.organization.location = { neuron_id: "n1", subject_id: "s1" };
+    s.edges.push(
+      { source: "Impulse.md", target: "Momentum.md" },
+      { source: "Unlinked.md", target: "Missing.md" },
+      { source: "Unlinked.md", target: "Unlinked.md" },
+    );
+    expect(scopedNotes(s, wholeVault)).toHaveLength(4);
+    const data = allNotesData(s);
+    expect(data.edges).toHaveLength(6);
+    expect(data.neighbors[data.index.get("Unlinked.md")!]).toEqual([]);
+    const i = data.index.get("Velocity.md")!;
+    expect(data.groups[data.subjects[i]].id).toBe("s2");
+    s.notes.reverse();
+    s.edges.reverse();
+    s.notes[0].title = "A new title";
+    s.notes[0].revision = "edited";
+    expect(allNotesData(s).key).toBe(data.key);
+    const changed = structuredClone(s);
+    changed.notes[0].subject_id = "s2";
+    expect(allNotesData(changed).key).not.toBe(data.key);
+    s.edges.push({ source: "Unlinked.md", target: "Velocity.md" });
+    expect(allNotesData(s).key).not.toBe(data.key);
+  });
+  it("restores full-map selection and camera after following a link or entering a topic", () => {
+    const s = snapshot();
+    s.organization.location = { neuron_id: "n1", subject_id: "s1" };
+    const nav = new Exploration();
+    nav.sync(s);
+    let selected: string | undefined,
+      camera = frame;
+    nav.registerCapture(() => ({
+      scope: nav.scope,
+      selected,
+      frame: { ...camera },
+      positions: {},
+      mode: "read",
+      panelWidth: 456,
+    }));
+    nav.enter({ kind: "all-notes" });
+    nav.selectNote("Momentum.md");
+    selected = "Momentum.md";
+    camera = { x: 10, y: 57, zoom: 2.55, drawer: 488 };
+    nav.selectNote("Velocity.md");
+    selected = "Velocity.md";
+    expect(nav.scope.kind).toBe("all-notes");
+    const restored = nav.back();
+    expect(restored).toMatchObject({
+      selected: "Momentum.md",
+      frame: camera,
+      mode: "read",
+      panelWidth: 456,
+    });
+    selected = restored!.selected!;
+    nav.enterNote(selected);
+    expect(nav.scope.kind).toBe("topic");
+    expect(nav.back()?.scope.kind).toBe("all-notes");
+    expect(nav.back()?.selected).toBeUndefined();
+    expect(nav.back()?.scope).toEqual({ kind: "subnetwork", subject: "s1" });
+    expect(s.organization.location).toEqual({
+      neuron_id: "n1",
+      subject_id: "s1",
+    });
+  });
   it("uses subject UUIDs, distinguishes duplicate names and aggregates only real cross-subject links", () => {
     const s = snapshot(),
       data = network(s, { kind: "overview", neuron: null });

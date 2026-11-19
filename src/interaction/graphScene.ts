@@ -34,7 +34,7 @@ import {
   compositionNodes,
   type SceneNode,
 } from "./topology";
-import { GraphLight, litColor, lightColor } from "./light";
+import { graphInk, incident, linkOpacity } from "./graphPalette";
 import type { Exploration, FocusView } from "./exploration";
 import {
   connection,
@@ -43,7 +43,7 @@ import {
   trace,
   junction,
 } from "./connections";
-type Caption = Rect & { text: string; color: string };
+type Caption = Rect & { text: string };
 export class GraphScene {
   exploration?: Exploration;
   private navigationRevision = -1;
@@ -75,8 +75,6 @@ export class GraphScene {
   rings = new SelectionRings();
   signals = new SignalTimeline();
   measurements = new TextMeasurements();
-  light = new GraphLight();
-  lightCanvas: HTMLCanvasElement | null = null;
   container: HTMLDivElement | null = null;
   snapshot?: Snapshot;
   selected?: string;
@@ -135,7 +133,6 @@ export class GraphScene {
       this.raf = 0;
       feedback.cancel(this.signals.cancel());
       this.labels.clear();
-      this.light.clear();
     };
   }
   configure(
@@ -166,6 +163,7 @@ export class GraphScene {
       this.query = query;
       this.exploration.capture = this.capture;
       if (changed) {
+        this.hover = undefined;
         feedback.cancel(this.signals.cancel());
         const restore = navigation.restore;
         const target =
@@ -248,6 +246,7 @@ export class GraphScene {
     this.reduced = reduced;
     this.query = query;
     if (scopeChanged) {
+      this.hover = undefined;
       this.scope = scope;
       this.beforeDrawer = undefined;
       const saved = this.overviews.get(scope);
@@ -414,9 +413,11 @@ export class GraphScene {
     const active = this.hover ?? this.selected;
     if (!active) return;
     this.related.add(active);
-    for (const e of this.snapshot?.edges ?? []) {
-      if (e.source === active) this.related.add(e.target);
-      if (e.target === active) this.related.add(e.source);
+    for (const edge of this.topology.data.links) {
+      const a = idOf(edge.source),
+        b = idOf(edge.target);
+      if (a === active) this.related.add(b);
+      if (b === active) this.related.add(a);
     }
   }
   setHover(id?: string) {
@@ -499,11 +500,6 @@ export class GraphScene {
       this.controls.style.left = `${this.view.left + (this.view.width - this.view.left - f.drawer) / 2}px`;
     if (this.zoomText)
       this.zoomText.textContent = `${Math.round(f.zoom * 100)}%`;
-    this.container?.style.setProperty(
-      "--scene-left",
-      `${this.view.left + 8}px`,
-    );
-    this.container?.style.setProperty("--scene-right", `${f.drawer}px`);
     const visible = new Set(
       this.topology.data.nodes
         .filter((n) =>
@@ -669,7 +665,7 @@ export class GraphScene {
             }),
           )
         ) {
-          captions.push({ ...b, text, color: s.color });
+          captions.push({ ...b, text });
           break;
         }
       }
@@ -684,15 +680,6 @@ export class GraphScene {
     const f = this.motion.frame,
       bounds = usable(this.view, f.drawer),
       nodes = this.projected(f);
-    if (this.lightCanvas)
-      this.light.render(
-        this.lightCanvas,
-        this.topology.visibleNodes,
-        this.colors,
-        f,
-        this.view,
-        this.lightDensity(),
-      );
     ctx.save();
     const ratio = ctx.canvas.width / this.view.width;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
@@ -718,8 +705,11 @@ export class GraphScene {
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       for (const c of captions) {
-        ctx.fillStyle = c.color;
-        ctx.globalAlpha = 0.96;
+        ctx.strokeStyle = graphInk.halo;
+        ctx.lineWidth = 3;
+        ctx.lineJoin = "round";
+        ctx.strokeText(c.text, c.x, c.y + c.height / 2);
+        ctx.fillStyle = graphInk.text;
         ctx.fillText(c.text, c.x, c.y + c.height / 2);
       }
       ctx.globalAlpha = 1;
@@ -737,7 +727,7 @@ export class GraphScene {
         const n = nodes.find((n) => n.id === l.id)!;
         if (l.leader > 0.01) {
           ctx.globalAlpha = l.alpha * l.leader * 0.3;
-          ctx.strokeStyle = "#9aafbd";
+          ctx.strokeStyle = graphInk.link;
           ctx.lineWidth = 0.65;
           ctx.beginPath();
           ctx.moveTo(n.x, n.y);
@@ -745,7 +735,14 @@ export class GraphScene {
           ctx.stroke();
         }
         ctx.globalAlpha = l.alpha;
-        ctx.fillStyle = l.priority >= 700 ? "#edf4f8" : "#aab9c6";
+        ctx.strokeStyle = graphInk.halo;
+        ctx.lineJoin = "round";
+        ctx.lineWidth = 3;
+        ctx.strokeText(l.text, l.x, l.y);
+        ctx.fillStyle =
+          l.id === (this.hover ?? this.selected)
+            ? graphInk.focus
+            : graphInk.label;
         ctx.fillText(l.text, l.x, l.y);
       }
     }
@@ -754,7 +751,7 @@ export class GraphScene {
       const value = this.rings.value(n.id, now, this.reduced);
       if (value > 0) {
         ctx.globalAlpha = value * 0.9;
-        ctx.strokeStyle = "#f2f6fa";
+        ctx.strokeStyle = graphInk.focus;
         ctx.lineWidth = 1;
         junction(ctx, n.x, n.y, (n.radius + 5) * (0.8 + 0.2 * value), true);
         ctx.stroke();
@@ -767,8 +764,8 @@ export class GraphScene {
         if (!a || !b) continue;
         const t = (now - p.start) / p.duration;
         const path = connection(a, b, p.source, p.target);
-        ctx.fillStyle = p.color;
-        ctx.strokeStyle = p.color;
+        ctx.fillStyle = graphInk.focus;
+        ctx.strokeStyle = graphInk.focus;
         if (t >= 0 && t < 1) {
           ctx.globalAlpha = 0.85;
           ctx.lineWidth = 1.3;
@@ -869,14 +866,17 @@ export class GraphScene {
         radius,
         extent,
         sprite,
-        color: this.colors.get(n.subject_id) ?? "#95a6b8",
+        color: this.colors.get(n.subject_id) ?? graphInk.mark,
         label: label
           ? {
               text: label.text,
               x: label.x + offset.x,
               y: label.y + offset.y,
               alpha: label.alpha,
-              color: label.priority >= 700 ? "#edf4f8" : "#aab9c6",
+              color:
+                id === (this.hover ?? this.selected)
+                  ? graphInk.focus
+                  : graphInk.label,
             }
           : undefined,
       };
@@ -884,12 +884,8 @@ export class GraphScene {
     const positions = new Map(nodes.map((n) => [n.id, n]));
     const edges = chosen.map((e) => {
       const source = idOf(e.source),
-        target = idOf(e.target),
-        a = byId.get(source)!,
-        b = byId.get(target)!;
-      const same = a.subject_id === b.subject_id,
-        active = this.related.has(source) && this.related.has(target);
-      const color = this.colors.get(a.subject_id) ?? "#95a6b8";
+        target = idOf(e.target);
+      const active = incident(this.hover ?? this.selected, source, target);
       return {
         id: JSON.stringify([source, target]),
         source,
@@ -900,12 +896,8 @@ export class GraphScene {
           source,
           target,
         ),
-        color: same
-          ? lightColor(color, active ? 0.94 : 0.62)
-          : active
-            ? "#a5c3d08c"
-            : "#839aaf3b",
-        width: active ? 1.15 : same ? 0.7 : 0.5,
+        color: active ? graphInk.focus : graphInk.link,
+        width: active ? 1.3 : 0.8,
       };
     });
     const key = this.topology.key,
@@ -927,7 +919,7 @@ export class GraphScene {
             x: point.x + offset.x,
             y: point.y + offset.y,
             radius: nodeScreenRadius(n, f.zoom),
-            color: this.colors.get(n.subject_id) ?? "#95a6b8",
+            color: this.colors.get(n.subject_id) ?? graphInk.mark,
             shape:
               n.neighbors < 2 && n.role !== "subnetwork"
                 ? "diamond"
@@ -949,12 +941,6 @@ export class GraphScene {
         !this.topology.reveal.active &&
         !this.engine,
     };
-  }
-  private lightDensity() {
-    return Math.max(
-      0.45,
-      Math.min(1, 12 / Math.sqrt(Math.max(1, this.topology.data.nodes.length))),
-    );
   }
   isInteractive(n: SceneNode) {
     return (
@@ -987,9 +973,8 @@ export class GraphScene {
     const a = this.topology.positions.get(idOf(edge.source)),
       b = this.topology.positions.get(idOf(edge.target));
     if (!a || !b) return;
-    const same = a.subject_id === b.subject_id,
-      active = this.related.has(a.id) && this.related.has(b.id);
-    const color = this.colors.get(a.subject_id) ?? "#95a6b8";
+    const focus = this.hover ?? this.selected;
+    const active = incident(focus, a.id, b.id);
     ctx.save();
     const progress = Math.max(
       0,
@@ -1024,29 +1009,21 @@ export class GraphScene {
         ctx.lineTo(p.x / scale, p.y / scale);
       }
     }
-    if (same) {
-      ctx.strokeStyle = lightColor(
-        color,
-        (active ? 0.13 : 0.025) * this.lightDensity(),
-      );
-      ctx.lineWidth = (active ? 2.5 : 1.6) / scale;
-      ctx.stroke();
-    }
-    ctx.strokeStyle = same
-      ? lightColor(color, active ? 0.94 : 0.62)
-      : active
-        ? "#a5c3d08c"
-        : "#839aaf3b";
-    ctx.lineWidth = (active ? 1.15 : same ? 0.7 : 0.5) / scale;
+    ctx.globalAlpha *= active
+      ? 0.96
+      : linkOpacity(this.topology.data.links.length, scale, !!focus);
+    ctx.strokeStyle = active ? graphInk.focus : graphInk.link;
+    ctx.lineWidth = (active ? 1.3 : 0.8) / scale;
     ctx.stroke();
     ctx.restore();
   }
   drawNode(n: SceneNode, ctx: CanvasRenderingContext2D, scale: number) {
-    const color = this.colors.get(n.subject_id) ?? "#95a6b8",
+    const color = this.colors.get(n.subject_id) ?? graphInk.mark,
       r = nodeScreenRadius(n, scale) / scale,
       x = n.x ?? 0,
       y = n.y ?? 0;
-    const active = n.id === this.selected || n.id === this.hover;
+    const focus = this.hover ?? this.selected;
+    const active = n.id === focus;
     const connected = this.related.has(n.id);
     ctx.save();
     const alpha =
@@ -1054,25 +1031,12 @@ export class GraphScene {
         !`${n.title} ${n.id}`
           .toLowerCase()
           .includes(this.query.toLowerCase())) ||
-      (this.hover && !this.related.has(n.id))
-        ? 0.38
+      (focus && !connected)
+        ? 0.54
         : 1;
-    const halo = r * (active ? 2.1 : 1.65);
-    ctx.globalCompositeOperation = "lighter";
-    const reveal = Math.max(0, this.topology.reveal.alpha(n.id));
-    ctx.globalAlpha =
-      alpha * reveal * this.lightDensity() * (connected ? 0.5 : 0.3);
-    ctx.drawImage(
-      this.light.texture(color),
-      x - halo,
-      y - halo,
-      halo * 2,
-      halo * 2,
-    );
-    ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = alpha * reveal;
+    ctx.globalAlpha = alpha * Math.max(0, this.topology.reveal.alpha(n.id));
     if (n.neighbors < 2 && n.role !== "subnetwork") {
-      ctx.fillStyle = litColor(color, active ? 0.65 : 0.18);
+      ctx.fillStyle = color;
       ctx.beginPath();
       ctx.moveTo(x, y - r);
       ctx.lineTo(x + r, y);
@@ -1080,25 +1044,26 @@ export class GraphScene {
       ctx.lineTo(x - r, y);
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = litColor(color, 0.4);
-      ctx.lineWidth = 0.65 / scale;
+      ctx.strokeStyle = active ? graphInk.focus : graphInk.mark;
+      ctx.lineWidth = (active ? 1.65 : 0.65) / scale;
+      ctx.stroke();
       ctx.beginPath();
       ctx.moveTo(x - r * 1.3, y);
       ctx.lineTo(x + r * 1.3, y);
       ctx.stroke();
     } else {
-      ctx.fillStyle = "#080c10";
+      ctx.fillStyle = graphInk.frost;
       junction(ctx, x, y, r);
       ctx.fill();
-      ctx.strokeStyle = litColor(color, active ? 0.45 : 0.12);
-      ctx.lineWidth = (n.neighbors >= 5 ? 1.1 : 0.85) / scale;
+      ctx.strokeStyle = active ? graphInk.focus : graphInk.mark;
+      ctx.lineWidth = (active ? 1.65 : n.neighbors >= 5 ? 1.0 : 0.8) / scale;
       junction(ctx, x, y, r, n.neighbors >= 5);
       ctx.stroke();
-      ctx.fillStyle = litColor(color, active ? 0.8 : connected ? 0.3 : 0.12);
+      ctx.fillStyle = color;
       const core = r * (n.neighbors >= 5 ? 0.48 : 0.44);
       ctx.fillRect(x - core, y - core, core * 2, core * 2);
       if (n.neighbors >= 5) {
-        ctx.strokeStyle = litColor(color, 0.2);
+        ctx.strokeStyle = active ? graphInk.focus : graphInk.mark;
         ctx.lineWidth = 0.75 / scale;
         ctx.beginPath();
         ctx.moveTo(x + r, y);
