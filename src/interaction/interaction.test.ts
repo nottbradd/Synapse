@@ -380,8 +380,10 @@ describe("voice reservations and preferences", () => {
       sound: false,
       volume: 0.21,
       motion: "system",
+      startupAnimation: true,
+      returnAnimation: true,
     });
-    expect(decodePreferences('{"schema_version":99}').volume).toBe(0.35);
+    expect(decodePreferences('{"schema_version":99}').volume).toBe(0.7);
   });
   it("migrates existing sound settings without changing them or writing storage", () => {
     const raw = '{"schema_version":1,"sound":false,"volume":0.17}';
@@ -392,6 +394,8 @@ describe("voice reservations and preferences", () => {
       sound: false,
       volume: 0.17,
       motion: "system",
+      startupAnimation: true,
+      returnAnimation: true,
     });
     expect(storage.setItem).not.toHaveBeenCalled();
     store.update({ motion: "full" });
@@ -400,6 +404,8 @@ describe("voice reservations and preferences", () => {
       sound: false,
       volume: 0.17,
       motion: "full",
+      startupAnimation: true,
+      returnAnimation: true,
     });
   });
   it.each([
@@ -425,6 +431,8 @@ describe("voice reservations and preferences", () => {
       sound: false,
       volume: 0.2,
       motion: "system",
+      startupAnimation: true,
+      returnAnimation: true,
     });
   });
 });

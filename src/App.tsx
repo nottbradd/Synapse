@@ -21,6 +21,12 @@ import { feedback } from "./interaction/events";
 import StudyPanel from "./components/StudyPanel";
 import { useStudy } from "./hooks/useStudy";
 import { useReducedMotion } from "./hooks/useReducedMotion";
+import {
+  useStartup,
+  foreground,
+  nativeWindowShown,
+} from "./startup/useStartup";
+import { attachNativeFocus } from "./interaction/nativeFocus";
 export default function App() {
   const w = useWorkspace();
   const reduced = useReducedMotion();
@@ -46,21 +52,16 @@ export default function App() {
   }, [vault?.root]);
   useEffect(() => {
     if (!isTauri()) return;
-    let alive = true,
-      notified = false;
-    const unlisten = getCurrentWindow().onFocusChanged(({ payload }) => {
-      notified = true;
-      if (alive) feedback.setNativeFocus(payload);
-    });
-    void getCurrentWindow()
-      .isFocused()
-      .then((focused) => {
-        if (alive && !notified) feedback.setNativeFocus(focused);
-      });
-    return () => {
-      alive = false;
-      void unlisten.then((fn) => fn());
-    };
+    return attachNativeFocus(
+      getCurrentWindow(),
+      (focused) => {
+        feedback.setNativeFocus(focused);
+        foreground(focused);
+      },
+      window,
+      document,
+      nativeWindowShown,
+    );
   }, []);
   const [action, setAction] = useState<Action | null>(null),
     [noteSubject, setNoteSubject] = useState(""),
@@ -84,6 +85,7 @@ export default function App() {
               ? "review"
               : "";
   useModalFocus(modal);
+  const startupRoot = useStartup(w.initialReady, reduced, !!modal);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || busy || action || w.review || preferencesOpen)
@@ -154,13 +156,22 @@ export default function App() {
     ],
   );
   return (
-    <main className="app" data-motion={reduced ? "reduced" : "full"}>
-      {!vault ? (
+    <main
+      ref={startupRoot}
+      className="app"
+      data-motion={reduced ? "reduced" : "full"}
+    >
+      {!w.initialReady ? (
+        <div className="startup-restoring" role="status">
+          Restoring your workspace…
+        </div>
+      ) : !vault ? (
         <div className="welcome">
-          <Waypoints size={34} strokeWidth={1.5} />
-          <h1>Synapse</h1>
+          <Waypoints data-swarm="box" size={34} strokeWidth={1.5} />
+          <h1 data-swarm="text">Synapse</h1>
           <button
             className="primary"
+            data-swarm="box"
             disabled={busy}
             onClick={() => void w.chooseVault()}
           >
@@ -172,7 +183,7 @@ export default function App() {
             Open vault
           </button>
           <p>Choose a folder of Markdown notes</p>
-          <button onClick={() => setPreferencesOpen(true)}>
+          <button data-swarm="box" onClick={() => setPreferencesOpen(true)}>
             <Settings2 size={16} />
             Preferences
           </button>

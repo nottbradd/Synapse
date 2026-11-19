@@ -13,6 +13,7 @@ import { GraphScene } from "../interaction/graphScene";
 import { nodeScreenRadius, type SceneNode } from "../interaction/topology";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 import TransitionTitle from "./TransitionTitle";
+import { registerPresentation } from "../startup/presentation";
 export default function Graph({
   snapshot,
   exploration,
@@ -128,6 +129,10 @@ export default function Graph({
     exploration.revision,
   ]);
   useEffect(() => scene.installForces(), [scene, topology]);
+  useLayoutEffect(
+    () => registerPresentation(container.current!, () => scene.presentation()),
+    [scene],
+  );
   const scope = exploration.scope,
     title =
       scope.kind === "topic"
@@ -148,66 +153,68 @@ export default function Graph({
       onWheel={scene.wake}
       onPointerLeave={() => scene.setHover()}
     >
-      <canvas className="graph-light" aria-hidden="true" ref={light} />
-      <ForceGraph2D
-        ref={graph}
-        width={size.width}
-        height={size.height}
-        graphData={data}
-        backgroundColor="rgba(0,0,0,0)"
-        nodeId="id"
-        nodeLabel=""
-        autoPauseRedraw={false}
-        onNodeClick={(_node, event) => openAt(event)}
-        onBackgroundClick={openAt}
-        onLinkClick={(_link, event) => openAt(event)}
-        onNodeHover={(n) =>
-          scene.setHover(n && scene.isInteractive(n) ? n.id : undefined)
-        }
-        onZoom={() => scene.manual()}
-        onNodeDrag={(n) => {
-          scene.topology.reveal.pin(n);
-          if (dragLayout !== topology) setDragLayout(topology);
-          scene.engine = true;
-          scene.wake();
-        }}
-        onNodeDragEnd={(n) => {
-          n.fx = n.x;
-          n.fy = n.y;
-          scene.topology.reveal.pin(n);
-          scene.wake();
-        }}
-        onEngineStop={() => scene.engineStopped()}
-        cooldownTicks={
-          scene.topology.nested
-            ? 0
-            : scene.topology.layoutChanged || dragLayout === topology
-              ? 90
-              : 0
-        }
-        warmupTicks={scene.topology.layoutChanged ? 80 : 0}
-        d3AlphaDecay={0.055}
-        linkCanvasObject={(link, ctx, scale) =>
-          scene.drawEdge(link, ctx, scale)
-        }
-        linkCanvasObjectMode={() => "replace"}
-        nodeCanvasObject={(n, ctx, scale) => scene.drawNode(n, ctx, scale)}
-        nodePointerAreaPaint={(n, color, ctx) => {
-          if (!scene.isInteractive(n)) return;
-          ctx.fillStyle = color;
-          ctx.beginPath();
-          ctx.arc(
-            n.x ?? 0,
-            n.y ?? 0,
-            Math.max(nodeScreenRadius(n, scene.motion.frame.zoom), 8) /
-              scene.motion.frame.zoom,
-            0,
-            Math.PI * 2,
-          );
-          ctx.fill();
-        }}
-        onRenderFramePost={(ctx) => scene.draw(ctx)}
-      />
+      <div className="graph-surface" data-swarm="graph">
+        <canvas className="graph-light" aria-hidden="true" ref={light} />
+        <ForceGraph2D
+          ref={graph}
+          width={size.width}
+          height={size.height}
+          graphData={data}
+          backgroundColor="rgba(0,0,0,0)"
+          nodeId="id"
+          nodeLabel=""
+          autoPauseRedraw={false}
+          onNodeClick={(_node, event) => openAt(event)}
+          onBackgroundClick={openAt}
+          onLinkClick={(_link, event) => openAt(event)}
+          onNodeHover={(n) =>
+            scene.setHover(n && scene.isInteractive(n) ? n.id : undefined)
+          }
+          onZoom={() => scene.manual()}
+          onNodeDrag={(n) => {
+            scene.topology.reveal.pin(n);
+            if (dragLayout !== topology) setDragLayout(topology);
+            scene.engine = true;
+            scene.wake();
+          }}
+          onNodeDragEnd={(n) => {
+            n.fx = n.x;
+            n.fy = n.y;
+            scene.topology.reveal.pin(n);
+            scene.wake();
+          }}
+          onEngineStop={() => scene.engineStopped()}
+          cooldownTicks={
+            scene.topology.nested
+              ? 0
+              : scene.topology.layoutChanged || dragLayout === topology
+                ? 90
+                : 0
+          }
+          warmupTicks={scene.topology.layoutChanged ? 80 : 0}
+          d3AlphaDecay={0.055}
+          linkCanvasObject={(link, ctx, scale) =>
+            scene.drawEdge(link, ctx, scale)
+          }
+          linkCanvasObjectMode={() => "replace"}
+          nodeCanvasObject={(n, ctx, scale) => scene.drawNode(n, ctx, scale)}
+          nodePointerAreaPaint={(n, color, ctx) => {
+            if (!scene.isInteractive(n)) return;
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(
+              n.x ?? 0,
+              n.y ?? 0,
+              Math.max(nodeScreenRadius(n, scene.motion.frame.zoom), 8) /
+                scene.motion.frame.zoom,
+              0,
+              Math.PI * 2,
+            );
+            ctx.fill();
+          }}
+          onRenderFramePost={(ctx) => scene.draw(ctx)}
+        />
+      </div>
       <header
         className="graph-heading"
         ref={heading}
@@ -222,10 +229,10 @@ export default function Graph({
             <ArrowLeft size={17} /> Back
           </button>
         )}
-        <h1 title={title}>
+        <h1 title={title} data-swarm="text">
           <TransitionTitle text={title ?? "All Neurons"} />
         </h1>
-        <span>
+        <span data-swarm="text">
           {scope.kind === "overview"
             ? `${scene.topology.visibleNodes.length} subnetworks`
             : scope.kind === "topic"
@@ -236,6 +243,7 @@ export default function Graph({
       {scope.kind === "topic" && scene.topology.visibleNodes.length === 1 && (
         <div
           className="network-empty"
+          data-swarm="box"
           style={{ left: left + 28, right: selected ? editorWidth + 60 : 28 }}
         >
           No linked concepts yet. Add a WikiLink in this note to connect
@@ -245,6 +253,7 @@ export default function Graph({
       {!scene.topology.visibleNodes.length && (
         <div
           className="graph-empty"
+          data-swarm="box"
           style={{ left: left + 24, right: selected ? editorWidth + 56 : 24 }}
         >
           <h2>No notes yet</h2>
@@ -254,7 +263,7 @@ export default function Graph({
           </button>
         </div>
       )}
-      <div className="graph-controls glass" ref={controls}>
+      <div className="graph-controls glass" ref={controls} data-swarm="box">
         <details className="network-browser">
           <summary aria-label="Browse current network">Browse</summary>
           <div>

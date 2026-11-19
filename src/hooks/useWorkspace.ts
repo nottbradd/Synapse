@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open } from "../startup/dialogs";
 import {
   inLocation,
   message,
@@ -17,6 +17,7 @@ import { feedback } from "../interaction/events";
 import { Exploration } from "../interaction/exploration";
 type Pending = { title: string; detail: string; action: () => void };
 export function useWorkspace() {
+  const [initialReady, setInitialReady] = useState(false);
   const [exploration] = useState(() => new Exploration());
   const [, renderNavigation] = useState(0);
   const [vault, setVault] = useState<Snapshot | null>(null),
@@ -98,6 +99,7 @@ export function useWorkspace() {
   );
   useEffect(() => {
     if (!isTauri()) {
+      setInitialReady(true);
       setError(
         "Open Synapse as a desktop app to access your local vault. Run npm run tauri dev.",
       );
@@ -111,7 +113,10 @@ export function useWorkspace() {
       })
       .catch((e: unknown) => fail(e))
       .finally(() => {
-        if (!cancelled) setBusy(false);
+        if (!cancelled) {
+          setBusy(false);
+          setInitialReady(true);
+        }
       });
     const unlisten = listen<Snapshot>("vault-changed", (e) => {
       void applySnapshot(e.payload);
@@ -520,6 +525,7 @@ export function useWorkspace() {
   const unresolved =
     vault?.links.filter((l) => l.source === doc?.id && !l.target) ?? [];
   return {
+    initialReady,
     exploration,
     navigateGraph,
     vault,

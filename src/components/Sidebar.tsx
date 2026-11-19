@@ -146,14 +146,16 @@ export default function Sidebar({
       <aside
         className={`sidebar glass ${collapsed ? "collapsed" : ""}`}
         aria-label="Vault navigation"
+        data-swarm-surface=""
       >
         <header className="sidebar-head">
           <span className="brand">
-            <Waypoints size={19} />
-            {!collapsed && "Synapse"}
+            <Waypoints size={19} data-swarm="box" />
+            {!collapsed && <span data-swarm="text">Synapse</span>}
           </span>
           <button
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            data-swarm="box"
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             onClick={() => setCollapsed(!collapsed)}
           >
@@ -165,7 +167,7 @@ export default function Sidebar({
           </button>
         </header>
         {collapsed ? (
-          <div className="rail">
+          <div className="rail" data-swarm="box">
             <button
               title="Create study material"
               aria-label="Create study material"
@@ -226,8 +228,10 @@ export default function Sidebar({
           </div>
         ) : (
           <>
-            <div className="vault-heading">
-              <strong title={vault.root}>{vault.name}</strong>
+            <div className="vault-heading" data-swarm="box">
+              <strong title={vault.root} data-swarm-label="">
+                {vault.name}
+              </strong>
               <button
                 title="Open vault"
                 aria-label="Open vault"
@@ -237,10 +241,11 @@ export default function Sidebar({
                 <FolderOpen size={17} />
               </button>
             </div>
-            <label className="search">
+            <label className="search" data-swarm="box">
               <Search size={16} />
               <input
                 id="note-search"
+                data-swarm-label=""
                 aria-label="Search notes"
                 placeholder="Search notes"
                 value={query}
@@ -254,31 +259,35 @@ export default function Sidebar({
             </label>
             <button
               className="new-note"
+              data-swarm="box"
               disabled={busy}
               onClick={() => onNewNote()}
             >
               <Plus size={17} />
-              New note
+              <span data-swarm-label="">New note</span>
             </button>
             <nav className="hierarchy" aria-label="Neurons and subjects">
               <button
                 className={`all-row ${!location.neuron_id ? "selected" : ""}`}
+                data-swarm="box"
                 aria-current={!location.neuron_id ? "page" : undefined}
                 onClick={() =>
                   selectLocation({ neuron_id: null, subject_id: null })
                 }
               >
                 <Layers size={16} />
-                All Neurons
+                <span data-swarm-label="">All Neurons</span>
               </button>
               {org.neurons.map((neuron) => (
                 <div className="neuron-group" key={neuron.id}>
                   <div
                     className={`tree-row neuron-row ${location.neuron_id === neuron.id && !location.subject_id ? "selected" : ""}`}
+                    data-swarm="box"
                   >
                     {disclosure(neuron.id, neuron.name)}
                     <button
                       className="row-name"
+                      data-swarm-label=""
                       title={neuron.name}
                       aria-current={
                         location.neuron_id === neuron.id && !location.subject_id
@@ -307,6 +316,7 @@ export default function Sidebar({
                           <div key={subject.id} className="subject-group">
                             <div
                               className={`tree-row subject-row ${location.subject_id === subject.id ? "selected" : ""}`}
+                              data-swarm="duplicate"
                             >
                               {disclosure(subject.id, subject.name)}
                               <span
@@ -315,6 +325,7 @@ export default function Sidebar({
                               />
                               <button
                                 className="row-name"
+                                data-swarm-label=""
                                 title={subject.name}
                                 aria-current={
                                   location.subject_id === subject.id
@@ -333,7 +344,7 @@ export default function Sidebar({
                               {more(subject.id, false)}
                             </div>
                             {(!closed.has(subject.id) || query) && (
-                              <div className="note-rows">
+                              <div className="note-rows" data-swarm="box">
                                 <NoteTree
                                   notes={notes}
                                   subject={subject}
@@ -356,7 +367,7 @@ export default function Sidebar({
                 </div>
               ))}
             </nav>
-            <div className="sidebar-actions">
+            <div className="sidebar-actions" data-swarm="box">
               <button
                 disabled={busy}
                 onClick={() => action({ kind: "new-neuron" })}
@@ -384,15 +395,15 @@ export default function Sidebar({
                 Import subject
               </button>
             </div>
-            <footer className="sidebar-footer">
+            <footer className="sidebar-footer" data-swarm="box">
               <div className="study-entries">
                 <button onClick={() => onStudy("create")}>
                   <Plus size={17} />
-                  Create
+                  <span data-swarm-label="">Create</span>
                 </button>
                 <button onClick={() => onStudy("library")}>
                   <BookOpen size={17} />
-                  Study library
+                  <span data-swarm-label="">Study library</span>
                   {remindersReady > 0 && <span>{remindersReady}</span>}
                 </button>
               </div>
@@ -411,7 +422,7 @@ export default function Sidebar({
                 }
               >
                 <BookOpen size={17} />
-                Review <span>{w.due}</span>
+                <span data-swarm-label="">Review</span> <span>{w.due}</span>
               </button>
               <button
                 title="Refresh vault"

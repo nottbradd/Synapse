@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { open, save } from "../startup/dialogs";
 import { FileArchive, FolderOpen, LoaderCircle, X } from "lucide-react";
 import {
   subjects,

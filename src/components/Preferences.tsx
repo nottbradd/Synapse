@@ -12,6 +12,7 @@ import { feedback } from "../interaction/events";
 import { useSystemReducedMotion } from "../hooks/useReducedMotion";
 import AiProviderSettings from "./AiProviderSettings";
 import type { SemanticRole } from "../interaction/exploration";
+import { withNativeDialog } from "../startup/suppression";
 export default function Preferences({ onClose }: { onClose: () => void }) {
   const p = usePreferences();
   const systemReduced = useSystemReducedMotion();
@@ -106,6 +107,34 @@ export default function Preferences({ onClose }: { onClose: () => void }) {
                 : p.motion === "full"
                   ? "Smooth camera, panel and title movement, with connection currents. Applies only to Synapse."
                   : "Immediate camera and panel changes, with no moving connection currents."}
+            </p>
+            <label className="check-option">
+              <input
+                type="checkbox"
+                checked={p.startupAnimation}
+                onChange={(e) =>
+                  preferences.update({ startupAnimation: e.target.checked })
+                }
+              />
+              Startup animation
+            </label>
+            <p>
+              A brief, silent cursor rebuild when Synapse first opens. Skipped
+              with Reduced animations.
+            </p>
+            <label className="check-option">
+              <input
+                type="checkbox"
+                checked={p.returnAnimation}
+                onChange={(e) =>
+                  preferences.update({ returnAnimation: e.target.checked })
+                }
+              />
+              Return animation
+            </label>
+            <p>
+              A silent accent when you return to Synapse. Your workspace stays
+              visible.
             </p>
           </section>
           <section className="settings-group">
@@ -367,7 +396,9 @@ export default function Preferences({ onClose }: { onClose: () => void }) {
                   disabled={busy}
                   onClick={() =>
                     void run(async () => {
-                      await invoke("test_reminder_notification");
+                      await withNativeDialog(() =>
+                        invoke("test_reminder_notification"),
+                      );
                     }, "Notification sent to Windows")
                   }
                 >

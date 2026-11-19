@@ -13,7 +13,11 @@ import {
   type Frame,
   type Viewport,
 } from "./motion";
-import { AnimatedLabels, SelectionRings } from "./labels";
+import { AnimatedLabels, SelectionRings, type DrawLabel } from "./labels";
+import type {
+  GraphPresentation,
+  PresentationNode,
+} from "../startup/presentation";
 import {
   CAPTION_FONT,
   LABEL_FONT,
@@ -101,6 +105,8 @@ export class GraphScene {
   private pending?: InteractionEvent;
   private disposed = false;
   private initial = true;
+  private firstDraw = true;
+  private drawnLabels: DrawLabel[] = [];
   attach() {
     this.disposed = false;
     const fonts = watchFonts(this.measurements, () => {
@@ -190,6 +196,13 @@ export class GraphScene {
                 ),
           now,
         );
+        // Initial placement has no previous view to transition from. Establish
+        // the existing layout before its first paint; later navigation retains
+        // the normal spring, reveal, camera and pinned-position behaviour.
+        if (this.navigationRevision === -1) {
+          this.motion.snap(this.motion.destination, now);
+          this.topology.reveal.advance(this.topology.data.nodes, now, true);
+        }
         this.navigationRevision = navigation.revision;
       } else if (
         selectionChanged ||
@@ -715,10 +728,11 @@ export class GraphScene {
       const labels = this.labels.advance(
         nodes,
         dt,
-        this.reduced,
+        this.reduced || this.firstDraw,
         bounds,
         captions,
       );
+      this.drawnLabels = labels;
       for (const l of labels) {
         const n = nodes.find((n) => n.id === l.id)!;
         if (l.leader > 0.01) {
@@ -784,6 +798,157 @@ export class GraphScene {
         }
       }
     ctx.restore();
+    if (this.measurements.ready) this.firstDraw = false;
+  }
+  presentation(): GraphPresentation | undefined {
+    if (
+      !this.container ||
+      !this.api ||
+      this.firstDraw ||
+      this.dirty ||
+      this.engine ||
+      this.motion.active ||
+      this.topology.reveal.active ||
+      this.labels.active ||
+      !this.measurements.ready
+    )
+      return;
+    const element = this.container.querySelector<HTMLElement>(".graph-surface");
+    if (!element) return;
+    const f = this.motion.frame,
+      bounds = usable(this.view, f.drawer);
+    const offset = this.container.getBoundingClientRect();
+    const clip = { ...bounds, x: bounds.x + offset.x, y: bounds.y + offset.y };
+    const candidates = this.topology.visibleNodes.slice(0, 96).filter((n) => {
+      const p = project(n, f, this.view),
+        r = nodeScreenRadius(n, f.zoom) + 4;
+      return (
+        p.x - r >= bounds.x &&
+        p.x + r <= bounds.x + bounds.width &&
+        p.y - r >= bounds.y &&
+        p.y + r <= bounds.y + bounds.height
+      );
+    });
+    const byId = new Map(candidates.map((n) => [n.id, n]));
+    const picked = new Set<string>();
+    const links = this.topology.data.links
+      .slice(0, 256)
+      .filter((e) => byId.has(idOf(e.source)) && byId.has(idOf(e.target)));
+    const chosen = [];
+    for (const e of links) {
+      const a = idOf(e.source),
+        b = idOf(e.target);
+      if (new Set([...picked, a, b]).size > 6 || chosen.length >= 4) continue;
+      picked.add(a);
+      picked.add(b);
+      chosen.push(e);
+    }
+    for (const n of candidates) {
+      if (picked.size >= 6) break;
+      picked.add(n.id);
+    }
+    const nodes: PresentationNode[] = [...picked].map((id) => {
+      const n = byId.get(id)!,
+        p = project(n, f, this.view),
+        radius = nodeScreenRadius(n, f.zoom);
+      const extent = Math.ceil(radius * 2.3 + 4),
+        ratio = Math.min(devicePixelRatio || 1, 2);
+      const sprite = document.createElement("canvas");
+      sprite.width = sprite.height = Math.ceil(extent * 2 * ratio);
+      const ctx = sprite.getContext("2d")!;
+      ctx.scale(ratio, ratio);
+      ctx.translate(extent, extent);
+      ctx.scale(f.zoom, f.zoom);
+      ctx.translate(-(n.x ?? 0), -(n.y ?? 0));
+      this.drawNode(n, ctx, f.zoom);
+      const label = this.drawnLabels.find((l) => l.id === id);
+      return {
+        id,
+        x: p.x + offset.x,
+        y: p.y + offset.y,
+        radius,
+        extent,
+        sprite,
+        color: this.colors.get(n.subject_id) ?? "#95a6b8",
+        label: label
+          ? {
+              text: label.text,
+              x: label.x + offset.x,
+              y: label.y + offset.y,
+              alpha: label.alpha,
+              color: label.priority >= 700 ? "#edf4f8" : "#aab9c6",
+            }
+          : undefined,
+      };
+    });
+    const positions = new Map(nodes.map((n) => [n.id, n]));
+    const edges = chosen.map((e) => {
+      const source = idOf(e.source),
+        target = idOf(e.target),
+        a = byId.get(source)!,
+        b = byId.get(target)!;
+      const same = a.subject_id === b.subject_id,
+        active = this.related.has(source) && this.related.has(target);
+      const color = this.colors.get(a.subject_id) ?? "#95a6b8";
+      return {
+        id: JSON.stringify([source, target]),
+        source,
+        target,
+        path: connection(
+          positions.get(source)!,
+          positions.get(target)!,
+          source,
+          target,
+        ),
+        color: same
+          ? lightColor(color, active ? 0.94 : 0.62)
+          : active
+            ? "#a5c3d08c"
+            : "#839aaf3b",
+        width: active ? 1.15 : same ? 0.7 : 0.5,
+      };
+    });
+    const key = this.topology.key,
+      revision = this.navigationRevision;
+    const view = JSON.stringify(this.view),
+      frame = JSON.stringify(f),
+      selected = this.selected,
+      hover = this.hover,
+      query = this.query;
+    return {
+      element,
+      clip,
+      nodes,
+      edges,
+      outlines: () =>
+        candidates.map((n) => {
+          const point = project(n, f, this.view);
+          return {
+            x: point.x + offset.x,
+            y: point.y + offset.y,
+            radius: nodeScreenRadius(n, f.zoom),
+            color: this.colors.get(n.subject_id) ?? "#95a6b8",
+            shape:
+              n.neighbors < 2 && n.role !== "subnetwork"
+                ? "diamond"
+                : n.neighbors >= 5
+                  ? "port"
+                  : "junction",
+          };
+        }),
+      valid: () =>
+        element.isConnected &&
+        key === this.topology.key &&
+        revision === this.navigationRevision &&
+        view === JSON.stringify(this.view) &&
+        frame === JSON.stringify(this.motion.frame) &&
+        selected === this.selected &&
+        hover === this.hover &&
+        query === this.query &&
+        !this.motion.active &&
+        !this.topology.reveal.active &&
+        !this.engine,
+    };
   }
   private lightDensity() {
     return Math.max(

@@ -6,6 +6,7 @@ import {
   type Viewport,
 } from "./motion";
 import { connection, curveLength } from "./connections";
+import { ARRIVAL_LEVEL } from "./soundLevels";
 export interface SignalNode {
   id: string;
   x?: number;
@@ -73,7 +74,7 @@ export function planSignals(
           arrival: start + duration,
           color: colors.get(n.subject_id) ?? "#95abbc",
           subject: n.subject_id,
-          level: 0.22,
+          level: ARRIVAL_LEVEL,
           pan: Math.max(
             -0.7,
             Math.min(0.7, (b.x - view.width / 2) / (view.width / 2)),
