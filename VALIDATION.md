@@ -1,5 +1,23 @@
 # Synapse validation
 
+## Synapse v1 — 19 November 2026
+
+The local review build promotes the All Notes application from `4edc7a312476d78b098f8fc6ffd9251328d57b42` to **1.0.0**. The release title is **Synapse v1** and the intended Git tag is `v1.0.0`. The application changes consist of version fields in the npm package and lockfile, Rust crate and lockfile, and Tauri configuration.
+
+| Windows x64 review artifact | Verified value |
+| --- | --- |
+| Installer | `Synapse_1.0.0_x64-setup.exe` |
+| Size | 5,989,941 bytes |
+| Installer SHA-256 | `2e845fa88696dd4ef6db342ee76aac3c53054d411c072ade4b9f41cc674fe3ea` |
+| Windows version resources | Product and file version 1.0.0 on both the installer and its executable payload |
+| Package identity | Synapse · `com.synapse.study` · current-user NSIS installer · unsigned |
+
+The installer passed archive integrity checking. Its generated NSIS script matched the 0.10.0 script after substituting the two version declarations. This preserves the registered install location, upgrade detection, executable name and uninstall key. All 11 archive paths matched the earlier bundle.
+
+On Windows 11, the regular 0.9.0 executable saved the Network Lab vault, full motion, muted sound and a disabled startup animation in a disposable profile. The exact `synapse.exe` extracted from the v1 installer then ran from the same application path. Both versions resolved the same native roaming and local storage directories inside the profile. On launch, v1 restored that vault and all three preferences.
+
+All Notes displayed **4,096 notes and 10,688 links**. Mechanics opened at **255%** with **56 direct neighbours**. Back restored the full map at 100% and then the previous All Neurons scope. Back from the linked-note view restored the Mechanics drawer at 255%. The production build, all 82 frontend tests and 48 Rust tests passed. The opt-in live provider test was skipped.
+
 ## 0.10.0 — All Notes, 19 November 2026
 
 ### Installed Windows desktop
