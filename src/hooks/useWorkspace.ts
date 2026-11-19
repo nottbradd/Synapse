@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -14,7 +14,12 @@ import {
 } from "../types";
 import { resolveWiki } from "../wiki";
 import { feedback } from "../interaction/events";
-import { Exploration } from "../interaction/exploration";
+import {
+  baseScope,
+  Exploration,
+  scopeKey,
+  type GraphAction,
+} from "../interaction/exploration";
 type Pending = { title: string; detail: string; action: () => void };
 export function useWorkspace() {
   const [initialReady, setInitialReady] = useState(false);
@@ -41,7 +46,11 @@ export function useWorkspace() {
     external?: boolean;
   } | null>(null);
   const dirty = !!doc && text !== doc.content;
-  if (vault) exploration.sync(vault);
+  const synced = useRef<Snapshot | null>(null);
+  if (vault && synced.current !== vault) {
+    exploration.sync(vault);
+    synced.current = vault;
+  }
   const current = useRef({ vault, doc, text, dirty, busy });
   current.current = { vault, doc, text, dirty, busy };
   const loadSerial = useRef(0);
@@ -200,8 +209,8 @@ export function useWorkspace() {
   ) {
     if (
       current.current.doc?.id === id &&
-      exploration.scope.kind === "topic" &&
-      exploration.scope.note === id
+      (exploration.scope.kind === "all-notes" ||
+        (exploration.scope.kind === "topic" && exploration.scope.note === id))
     )
       return;
     guard(
@@ -220,7 +229,7 @@ export function useWorkspace() {
               id,
             });
             if (serial === loadSerial.current) {
-              const voice = exploration.enterNote(id);
+              const voice = exploration.selectNote(id);
               setDoc(next);
               setText(next.content);
               setConflict(null);
@@ -249,7 +258,9 @@ export function useWorkspace() {
       true,
     );
   }
-  function navigateGraph(action: "back" | "overview" | { subject: string }) {
+  function navigateGraph(action: GraphAction) {
+    if (action === "all-notes" && exploration.scope.kind === "all-notes")
+      return;
     guard(
       "Leave this note?",
       () => {
@@ -259,14 +270,17 @@ export function useWorkspace() {
           exploration.sync(snapshot);
           const previous = action === "back" ? exploration.previous : undefined;
           if (action === "back" && !previous) return;
+          const noteId =
+            action === "linked" ? current.current.doc?.id : previous?.selected;
+          if (action === "linked" && !noteId) return;
           const serial = ++loadSerial.current;
           loadingNote.current = true;
           setBusy(true);
           try {
-            const next = previous?.selected
+            const next = noteId
               ? await invoke<Document>("read_note", {
                   vaultRoot: snapshot.root,
-                  id: previous.selected,
+                  id: noteId,
                 })
               : null;
             if (
@@ -275,9 +289,16 @@ export function useWorkspace() {
             )
               return;
             if (action === "back") exploration.back();
+            else if (action === "all-notes")
+              exploration.enter({ kind: "all-notes" });
+            else if (action === "fit-network") exploration.checkpoint();
+            else if (action === "linked" && next)
+              exploration.enterNote(next.id);
+            else if (action === "location")
+              exploration.enter(baseScope(snapshot.organization.location));
             else if (action === "overview")
               exploration.overview(snapshot.organization.location.neuron_id);
-            else
+            else if (typeof action === "object")
               exploration.enter({
                 kind: "subnetwork",
                 subject: action.subject,
@@ -291,18 +312,20 @@ export function useWorkspace() {
             setReview(false);
             renderNavigation((v) => v + 1);
             const scope = exploration.scope;
-            feedback.action({
-              kind: typeof action === "object" ? "focus" : "leave",
-              node: scope.kind === "topic" ? scope.note : undefined,
-              subject: scope.kind === "subnetwork" ? scope.subject : undefined,
-              role:
-                scope.kind === "topic"
-                  ? scope.level > 1
-                    ? "concept"
-                    : "topic"
-                  : "subnetwork",
-              level: scope.kind === "topic" ? scope.level : 0,
-            });
+            if (action !== "fit-network")
+              feedback.action({
+                kind: typeof action === "object" ? "focus" : "leave",
+                node: scope.kind === "topic" ? scope.note : undefined,
+                subject:
+                  scope.kind === "subnetwork" ? scope.subject : undefined,
+                role:
+                  scope.kind === "topic"
+                    ? scope.level > 1
+                      ? "concept"
+                      : "topic"
+                    : "subnetwork",
+                level: scope.kind === "topic" ? scope.level : 0,
+              });
           } catch (e) {
             fail(e, true);
           } finally {
@@ -422,7 +445,7 @@ export function useWorkspace() {
         },
       );
       setVault(next);
-      exploration.enterNote(created.id);
+      exploration.selectNote(created.id);
       setDoc(created);
       setText(created.content);
       setCreate(null);
@@ -460,8 +483,11 @@ export function useWorkspace() {
     if (
       JSON.stringify(location) ===
       JSON.stringify(current.current.vault?.organization.location)
-    )
+    ) {
+      if (scopeKey(exploration.scope) !== scopeKey(baseScope(location)))
+        navigateGraph("location");
       return;
+    }
     guard("Switch location?", () => {
       void organize({ kind: "select", location }).then((next) => {
         if (next) {
@@ -511,10 +537,13 @@ export function useWorkspace() {
       return false;
     }
   }
-  const visible =
-    vault?.notes.filter((n) =>
-      `${n.title} ${n.id}`.toLowerCase().includes(query.toLowerCase()),
-    ) ?? [];
+  const visible = useMemo(() => {
+    const needle = query.toLowerCase();
+    const notes = vault?.notes ?? [];
+    return needle
+      ? notes.filter((n) => `${n.title} ${n.id}`.toLowerCase().includes(needle))
+      : notes;
+  }, [vault?.notes, query]);
   const due =
     vault?.cards.filter(
       (c) =>

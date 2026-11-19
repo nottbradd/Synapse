@@ -7,14 +7,38 @@ import {
 } from "react";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import { ArrowLeft, Focus, Minus, Plus, RotateCcw } from "lucide-react";
-import type { Exploration } from "../interaction/exploration";
+import type { Exploration, GraphAction } from "../interaction/exploration";
+import type { SettledNetwork } from "../interaction/allNotesLayout";
+import AllNotesGraph from "./AllNotesGraph";
 import type { Snapshot } from "../types";
 import { GraphScene } from "../interaction/graphScene";
 import { nodeScreenRadius, type SceneNode } from "../interaction/topology";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 import TransitionTitle from "./TransitionTitle";
 import { registerPresentation } from "../startup/presentation";
-export default function Graph({
+export interface GraphProps {
+  snapshot: Snapshot;
+  exploration: Exploration;
+  onNavigate: (action: GraphAction) => void;
+  selected?: string;
+  query: string;
+  left: number;
+  drawer: RefObject<HTMLDivElement | null>;
+  editorWidth: number;
+  auxiliaryOpen?: boolean;
+  onOpen: (id: string) => void;
+  onNewNote: () => void;
+}
+export default function Graph(props: GraphProps) {
+  // App keys this component by vault root. Only this vault's last topology is retained.
+  const [cache] = useState(() => new Map<string, SettledNetwork>());
+  return props.exploration.scope.kind === "all-notes" ? (
+    <AllNotesGraph {...props} cache={cache} />
+  ) : (
+    <ScopedGraph {...props} />
+  );
+}
+function ScopedGraph({
   snapshot,
   exploration,
   onNavigate,
@@ -26,19 +50,7 @@ export default function Graph({
   auxiliaryOpen = false,
   onOpen,
   onNewNote,
-}: {
-  snapshot: Snapshot;
-  exploration: Exploration;
-  onNavigate: (action: "back" | "overview" | { subject: string }) => void;
-  selected?: string;
-  query: string;
-  left: number;
-  drawer: RefObject<HTMLDivElement | null>;
-  editorWidth: number;
-  auxiliaryOpen?: boolean;
-  onOpen: (id: string) => void;
-  onNewNote: () => void;
-}) {
+}: GraphProps) {
   const container = useRef<HTMLDivElement>(null),
     graph = useRef<ForceGraphMethods<SceneNode>>(undefined),
     heading = useRef<HTMLElement>(null),
@@ -140,7 +152,7 @@ export default function Graph({
         : scope.kind === "subnetwork"
           ? snapshot.organization.subjects.find((s) => s.id === scope.subject)
               ?.name
-          : scope.neuron
+          : scope.kind === "overview" && scope.neuron
             ? snapshot.organization.neurons.find((n) => n.id === scope.neuron)
                 ?.name
             : "All Neurons";

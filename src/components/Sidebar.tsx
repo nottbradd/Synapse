@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BookOpen,
   ChevronDown,
   ChevronRight,
   FolderOpen,
   Layers,
+  Network,
   Waypoints,
   Settings2,
   MoreHorizontal,
@@ -51,6 +52,15 @@ export default function Sidebar({
     selectLocation,
   } = w;
   const [closed, setClosed] = useState<Set<string>>(() => new Set());
+  const bySubject = useMemo(() => {
+    const groups = new Map<string, typeof visible>();
+    for (const n of visible) {
+      const arr = groups.get(n.subject_id);
+      if (arr) arr.push(n);
+      else groups.set(n.subject_id, [n]);
+    }
+    return groups;
+  }, [visible]);
   const [menu, setMenu] = useState<{
     id: string;
     neuron: boolean;
@@ -90,7 +100,8 @@ export default function Sidebar({
   }, [menu]);
   if (!vault) return null;
   const org = vault.organization,
-    location = org.location;
+    location = org.location,
+    allNotes = w.exploration.scope.kind === "all-notes";
   const toggle = (id: string) =>
     setClosed((old) => {
       const next = new Set(old);
@@ -168,6 +179,14 @@ export default function Sidebar({
         </header>
         {collapsed ? (
           <div className="rail" data-swarm="box">
+            <button
+              title="All Notes"
+              aria-label="All Notes"
+              aria-current={allNotes ? "page" : undefined}
+              onClick={() => w.navigateGraph("all-notes")}
+            >
+              <Network size={18} />
+            </button>
             <button
               title="Create study material"
               aria-label="Create study material"
@@ -267,21 +286,32 @@ export default function Sidebar({
               <span data-swarm-label="">New note</span>
             </button>
             <nav className="hierarchy" aria-label="Neurons and subjects">
-              <button
-                className={`all-row ${!location.neuron_id ? "selected" : ""}`}
-                data-swarm="box"
-                aria-current={!location.neuron_id ? "page" : undefined}
-                onClick={() =>
-                  selectLocation({ neuron_id: null, subject_id: null })
-                }
-              >
-                <Layers size={16} />
-                <span data-swarm-label="">All Neurons</span>
-              </button>
+              <div className="vault-views" data-swarm="box">
+                <button
+                  className={`all-row ${!allNotes && !location.neuron_id ? "selected" : ""}`}
+                  aria-current={
+                    !allNotes && !location.neuron_id ? "page" : undefined
+                  }
+                  onClick={() =>
+                    selectLocation({ neuron_id: null, subject_id: null })
+                  }
+                >
+                  <Layers size={16} />
+                  <span data-swarm-label="">All Neurons</span>
+                </button>
+                <button
+                  className={`all-row ${allNotes ? "selected" : ""}`}
+                  aria-current={allNotes ? "page" : undefined}
+                  onClick={() => w.navigateGraph("all-notes")}
+                >
+                  <Network size={16} />
+                  <span data-swarm-label="">All Notes</span>
+                </button>
+              </div>
               {org.neurons.map((neuron) => (
                 <div className="neuron-group" key={neuron.id}>
                   <div
-                    className={`tree-row neuron-row ${location.neuron_id === neuron.id && !location.subject_id ? "selected" : ""}`}
+                    className={`tree-row neuron-row ${!allNotes && location.neuron_id === neuron.id && !location.subject_id ? "selected" : ""}`}
                     data-swarm="box"
                   >
                     {disclosure(neuron.id, neuron.name)}
@@ -290,7 +320,9 @@ export default function Sidebar({
                       data-swarm-label=""
                       title={neuron.name}
                       aria-current={
-                        location.neuron_id === neuron.id && !location.subject_id
+                        !allNotes &&
+                        location.neuron_id === neuron.id &&
+                        !location.subject_id
                           ? "page"
                           : undefined
                       }
@@ -309,13 +341,11 @@ export default function Sidebar({
                     org.subjects
                       .filter((s) => s.neuron_id === neuron.id)
                       .map((subject) => {
-                        const notes = visible.filter(
-                          (n) => n.subject_id === subject.id,
-                        );
+                        const notes = bySubject.get(subject.id) ?? [];
                         return (
                           <div key={subject.id} className="subject-group">
                             <div
-                              className={`tree-row subject-row ${location.subject_id === subject.id ? "selected" : ""}`}
+                              className={`tree-row subject-row ${!allNotes && location.subject_id === subject.id ? "selected" : ""}`}
                               data-swarm="duplicate"
                             >
                               {disclosure(subject.id, subject.name)}
@@ -328,6 +358,7 @@ export default function Sidebar({
                                 data-swarm-label=""
                                 title={subject.name}
                                 aria-current={
+                                  !allNotes &&
                                   location.subject_id === subject.id
                                     ? "page"
                                     : undefined

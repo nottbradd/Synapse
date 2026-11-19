@@ -43,6 +43,36 @@ fn wiki_resolution_ambiguity_and_code() {
     assert_eq!(es.len(), 1);
     assert_eq!(ls[0].candidates.len(), 2);
     assert!(ls[1].target.is_none());
+    assert_eq!(
+        ns.iter().map(|n| n.neighbors).collect::<Vec<_>>(),
+        vec![0, 1, 1]
+    );
+}
+#[test]
+fn vault_graph_counts_unique_pairs_across_titles_paths_and_reverse_references() {
+    let mut notes = vec![
+        notes::parse("One/a.md", "---\ntitle: Alpha\n---\n").unwrap(),
+        notes::parse("Two/b.md", "").unwrap(),
+        notes::parse("Loose.md", "").unwrap(),
+    ];
+    let content = HashMap::from([
+        (
+            "One/a.md".into(),
+            "[[b]] [[./Two/B.MD#section|alias]] [[alpha]]".into(),
+        ),
+        ("Two/b.md".into(), "[[AlPhA]] [[One/a]] [[missing]]".into()),
+    ]);
+    let (resolved, edges) = links::build(&mut notes, &content);
+    assert_eq!(resolved.len(), 6);
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        (&*edges[0].source, &*edges[0].target),
+        ("One/a.md", "Two/b.md")
+    );
+    assert_eq!(
+        notes.iter().map(|n| n.neighbors).collect::<Vec<_>>(),
+        vec![1, 1, 0]
+    );
 }
 #[test]
 fn flashcard_parsing_and_identity() {

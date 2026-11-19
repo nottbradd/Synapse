@@ -2,10 +2,19 @@ import { inLocation, type Location, type Snapshot } from "../types";
 import type { Frame } from "./motion";
 
 export type GraphScope =
+  | { kind: "all-notes" }
   | { kind: "overview"; neuron: string | null }
   | { kind: "subnetwork"; subject: string }
   | { kind: "topic"; note: string; level: number };
 export type SemanticRole = "subnetwork" | "topic" | "concept";
+export type GraphAction =
+  | "back"
+  | "overview"
+  | "all-notes"
+  | "linked"
+  | "fit-network"
+  | "location"
+  | { subject: string };
 export interface NodePlacement {
   x: number;
   y: number;
@@ -30,6 +39,7 @@ export function baseScope(location: Location): GraphScope {
     : { kind: "overview", neuron: location.neuron_id };
 }
 export function validScope(scope: GraphScope, snapshot: Snapshot) {
+  if (scope.kind === "all-notes") return true;
   return scope.kind === "topic"
     ? snapshot.notes.some((n) => n.id === scope.note)
     : scope.kind === "subnetwork"
@@ -38,6 +48,7 @@ export function validScope(scope: GraphScope, snapshot: Snapshot) {
         snapshot.organization.neurons.some((n) => n.id === scope.neuron);
 }
 export function scopedNotes(snapshot: Snapshot, scope: GraphScope) {
+  if (scope.kind === "all-notes") return snapshot.notes;
   if (scope.kind === "topic") {
     const ids = new Set([scope.note]);
     for (const e of snapshot.edges) {
@@ -67,6 +78,12 @@ export class Exploration {
   restore?: FocusView;
   revision = 0;
   capture?: () => FocusView;
+  registerCapture(capture: () => FocusView) {
+    this.capture = capture;
+    return () => {
+      if (this.capture === capture) this.capture = undefined;
+    };
+  }
   setPresentation(
     presentation: Exploration["presentation"],
     restore: Exploration["restoreAuxiliary"],
@@ -111,14 +128,22 @@ export class Exploration {
   }
   enter(scope: GraphScope) {
     if (scopeKey(scope) === scopeKey(this.scope)) return false;
+    this.checkpoint();
+    this.scope = scope;
+    return true;
+  }
+  checkpoint() {
     const previous = this.capture?.();
     if (previous) this.history.push(previous);
     // Cycles can be explored indefinitely without unbounded memory growth.
     this.history = this.history.slice(-64);
-    this.scope = scope;
     this.restore = undefined;
     this.revision++;
-    return true;
+  }
+  selectNote(id: string): { role: SemanticRole; level: number } {
+    if (this.scope.kind !== "all-notes") return this.enterNote(id);
+    this.checkpoint();
+    return { role: "topic", level: 1 };
   }
   enterNote(id: string): { role: SemanticRole; level: number } {
     const level =

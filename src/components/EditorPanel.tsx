@@ -6,6 +6,7 @@ import {
   Save,
   Circle,
   Check,
+  Network,
 } from "lucide-react";
 import Editor from "./Editor";
 import Markdown from "./Markdown";
@@ -36,6 +37,7 @@ type Props = Pick<
   | "status"
   | "unresolved"
   | "exploration"
+  | "navigateGraph"
 >;
 export default function EditorPanel({
   vault,
@@ -59,6 +61,7 @@ export default function EditorPanel({
   status,
   unresolved,
   exploration,
+  navigateGraph,
 }: Props) {
   if (!vault || !doc) return null;
   return (
@@ -104,6 +107,15 @@ export default function EditorPanel({
         <h2 title={selected?.title}>
           <TransitionTitle text={selected?.title ?? doc.id} />
         </h2>
+        {exploration.scope.kind === "all-notes" && (
+          <button
+            className="map-explore"
+            onClick={() => navigateGraph("linked")}
+          >
+            <Network size={14} />
+            Explore linked notes
+          </button>
+        )}
       </div>
       <div className="editor-toolbar" data-swarm="box">
         <div className="segmented inset">
