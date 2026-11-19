@@ -114,8 +114,9 @@ for (const record of records)
     blocks.set(hash, text);
     return hash;
   });
+const { version } = JSON.parse(fs.readFileSync("package.json", "utf8"));
 let output =
-  "Synapse 0.6.0 — third-party notices\n\nSynapse itself is GPL-3.0-only. Dependencies retain the licenses below.\nThis inventory includes the Windows dependency closure and production npm packages; some build-time components are not part of the installed executable. No dependency source has been modified.\n\n";
+  `Synapse ${version} — third-party notices\n\nSynapse itself is GPL-3.0-only. Dependencies retain the licenses below.\nThis inventory includes the Windows dependency closure and production npm packages; some build-time components are not part of the installed executable. No dependency source has been modified.\n\n`;
 for (const record of records.sort((a, b) => a.name.localeCompare(b.name)))
   output += `${record.name}\nLicense expression: ${record.license}\nSource: ${record.source}\nNotice blocks: ${record.notices.join(", ")}\n\n`;
 for (const [id, text] of blocks)

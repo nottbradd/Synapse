@@ -4,6 +4,8 @@ The 0.6.0 release uses original additive oscillator synthesis in `src/interactio
 
 The previous private 0.5.1 build included a recording derived from Codex's notification. No redistribution license for that recording has been established. It is removed from the current source and build. Historical copies and old binary artifacts are excluded from the public repository and release. The source-code license is not permission to redistribute that recording.
 
-The Synapse application icon is an original geometric SVG in `src-tauri/icons/source.svg`; its raster derivatives share the project license. UI icons are Lucide (ISC). Geist and Manrope are bundled under the SIL Open Font License 1.1, with their original notices in `src/assets/fonts` and `public/licenses`. See the adjacent font README for upstream URLs. KaTeX's font and code notices are included in the dependency notice bundle.
+The Windows icon uses the same three-node branch as the startup animation. Its transparent background and frost outline let it sit on both light and dark surfaces. The original artwork in `src-tauri/icons/source.svg` and its raster derivatives share the project license.
+
+UI icons are Lucide (ISC). Geist and Manrope are bundled under the SIL Open Font License 1.1, with their original notices in `src/assets/fonts` and `public/licenses`. See the adjacent font README for upstream URLs. KaTeX's font and code notices are included in the dependency notice bundle.
 
 Screenshots and release footage use temporary synthetic study notes. The navigation prototype is an illustrative reference only and is not shipped or presented as application footage.

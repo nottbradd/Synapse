@@ -6,7 +6,7 @@ A Windows workspace for Markdown notes, linked knowledge, flashcards, quizzes an
 
 ## Install
 
-Download the Windows x64 installer and SHA-256 checksum from [Releases](https://github.com/nottbradd/Synapse/releases). Verify the download in PowerShell with `Get-FileHash .\Synapse_0.6.0_x64-setup.exe -Algorithm SHA256`, then run the installer.
+Download the Windows x64 installer and `SHA256SUMS.txt` from [Releases](https://github.com/nottbradd/Synapse/releases). Run `Get-FileHash .\Synapse_1.0.0_x64-setup.exe -Algorithm SHA256` in PowerShell, compare the result with the installer's entry in the checksum file, then run the installer.
 
 **The installer is unsigned.** Windows may identify its publisher as unknown. Download only from this repository and compare the checksum before deciding whether to install. No administrator access is normally required for the per-user installation.
 
@@ -16,6 +16,7 @@ Open a folder of Markdown notes to start. Synapse does not populate your vault w
 
 ## Explore and study
 
+- **All Notes** opens a map of the entire vault. Select a note to read it and highlight its direct links. Back returns to the previous view and camera position.
 - **Overview → subject subnetwork → topic → linked concepts.** Subject junctions use actual membership; a topic expands its real WikiLinks, including links across subjects. Each view is one hop, so cyclic links never create nested copies. Expanding a graph never calls AI.
 - **Back** restores the previous scope, selected note, camera and layout. The overview control returns to the starting network. Closing a note keeps the current network. Graph exploration does not reassign notes or change the review scope selected in the sidebar.
 - Use search, hover, wheel zoom or **Browse** to reach notes in dense networks. Neurons contain subjects, and identically named subjects in different Neurons remain distinct.

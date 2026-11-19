@@ -1,5 +1,9 @@
 # Synapse validation
 
+## Synapse v1 Windows release
+
+The public v1 installer includes the frosted workspace, warm-white Windows title bar and transparent application icon. Its filename is `Synapse_1.0.0_x64-setup.exe`. Use the [v1 release checksums](https://github.com/nottbradd/Synapse/releases/download/v1.0.0/SHA256SUMS.txt) to verify that download. The dated entries below record the hashes of earlier review builds.
+
 ## White frosted glass — 19 November 2026
 
 Verified the standard Windows x64 **1.0.0** installer on Windows 11. WebView2 ran the executable extracted from that installer in a disposable profile. The desktop loaded the production JavaScript, CSS, layout worker and bundled backdrop. The original backdrop and its packaged copy have identical SHA-256 digests.

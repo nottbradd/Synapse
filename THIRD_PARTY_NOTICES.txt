@@ -1,4 +1,4 @@
-Synapse 0.6.0 — third-party notices
+Synapse 1.0.0 — third-party notices
 
 Synapse itself is GPL-3.0-only. Dependencies retain the licenses below.
 This inventory includes the Windows dependency closure and production npm packages; some build-time components are not part of the installed executable. No dependency source has been modified.
@@ -21,7 +21,7 @@ Notice blocks: 6c91ec82929f91ff
 cargo:alloc-stdlib@0.3.0
 License expression: BSD-3-Clause
 Source: https://crates.io/crates/alloc-stdlib/0.3.0
-Notice blocks: c0c56f26d9c051ca
+Notice blocks: 4d7b6b5698039ac3
 
 cargo:anyhow@1.0.104
 License expression: MIT OR Apache-2.0
@@ -941,7 +941,7 @@ Notice blocks: 954f335b8baf5e1a, 1a6aa2616e740569
 cargo:selectors@0.38.0
 License expression: MPL-2.0
 Source: https://crates.io/crates/selectors/0.38.0
-Notice blocks: a71819603f7e8a66
+Notice blocks: dee04c039f30e98e
 
 cargo:semver@1.0.28
 License expression: MIT OR Apache-2.0
@@ -1161,7 +1161,7 @@ Notice blocks: eb8a6c84630461b3
 cargo:tauri-plugin@2.7.2
 License expression: Apache-2.0 OR MIT
 Source: https://crates.io/crates/tauri-plugin/2.7.2
-Notice blocks: 0d542e0c8804e39a, 9dd42ea92cff2ede, 5e834fe9788c5242
+Notice blocks: eb3d7b5485466acb, 4f11ab0631fbb692, 892614687d91ff79
 
 cargo:tauri-runtime-wry@2.12.3
 License expression: Apache-2.0 OR MIT
@@ -1436,17 +1436,17 @@ Notice blocks: d30183ec6610abca
 cargo:webview2-com-macros@0.8.1
 License expression: MIT
 Source: https://crates.io/crates/webview2-com-macros/0.8.1
-Notice blocks: 0dcf41516e608bbc
+Notice blocks: f34335e76fc91c0a
 
 cargo:webview2-com-sys@0.39.1
 License expression: MIT
 Source: https://crates.io/crates/webview2-com-sys/0.39.1
-Notice blocks: 0dcf41516e608bbc
+Notice blocks: f34335e76fc91c0a
 
 cargo:webview2-com@0.39.1
 License expression: MIT
 Source: https://crates.io/crates/webview2-com/0.39.1
-Notice blocks: 0dcf41516e608bbc
+Notice blocks: f34335e76fc91c0a
 
 cargo:winapi-util@0.1.11
 License expression: Unlicense OR MIT
@@ -1631,12 +1631,12 @@ Notice blocks: b969ab4be2f63a5d
 Geist
 License expression: OFL-1.1
 Source: https://github.com/vercel/geist-font
-Notice blocks: 1781d2806a07d91c
+Notice blocks: f52b2dd3e8543035
 
 Manrope
 License expression: OFL-1.1
 Source: https://github.com/sharanda/manrope
-Notice blocks: 58172e0c0fac2cda
+Notice blocks: 4b8929f05a122b7a
 
 npm:@codemirror/autocomplete@6.20.4
 License expression: MIT
@@ -1816,7 +1816,7 @@ Notice blocks: c37a32dd1cd44e7b
 npm:bezier-js@6.1.4
 License expression: MIT
 Source: https://www.npmjs.com/package/bezier-js/v/6.1.4
-Notice blocks: 622dfcd4f921268d
+Notice blocks: a0e656f7f3bd06bc
 
 npm:canvas-color-tracker@1.3.2
 License expression: MIT
@@ -2421,7 +2421,7 @@ Notice blocks: cf9b17822d1fcd4f
 npm:react-force-graph-2d@1.29.2
 License expression: MIT
 Source: https://www.npmjs.com/package/react-force-graph-2d/v/1.29.2
-Notice blocks: 5b6dc9ce44c7b736
+Notice blocks: e7ec7278b978f6b3
 
 npm:react-is@16.13.1
 License expression: MIT
@@ -2446,7 +2446,7 @@ Notice blocks: cf9b17822d1fcd4f
 npm:rehype-katex@7.0.1
 License expression: MIT
 Source: https://www.npmjs.com/package/rehype-katex/v/7.0.1
-Notice blocks: cb992262f361a535
+Notice blocks: d80192568efa757a
 
 npm:remark-gfm@4.0.1
 License expression: MIT
@@ -2456,7 +2456,7 @@ Notice blocks: ea559213e0e927a2
 npm:remark-math@6.0.0
 License expression: MIT
 Source: https://www.npmjs.com/package/remark-math/v/6.0.0
-Notice blocks: cb992262f361a535
+Notice blocks: d80192568efa757a
 
 npm:remark-parse@11.0.0
 License expression: MIT
@@ -3033,7 +3033,7 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-========== NOTICE 622dfcd4f921268d ==========
+========== NOTICE a0e656f7f3bd06bc ==========
 Upstream attribution: A javascript Bezier curve library by Pomax. This code is MIT licensed.
 Upstream: https://github.com/Pomax/bezierjs/blob/a41f3e08e9724c9973eca0eb5c1304120e72fc70/src/bezier.js
 Canonical license text: https://raw.githubusercontent.com/spdx/license-list-data/main/text/MIT.txt
@@ -3938,7 +3938,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-========== NOTICE 5b6dc9ce44c7b736 ==========
+========== NOTICE e7ec7278b978f6b3 ==========
 MIT License
 
 Copyright (c) 2018 Vasco Asturiano
@@ -4008,7 +4008,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-========== NOTICE cb992262f361a535 ==========
+========== NOTICE d80192568efa757a ==========
 (The MIT License)
 
 Copyright (c) 2017 Junyoung Choi <fluke8259@gmail.com>
@@ -4523,7 +4523,7 @@ Redistribution and use in source and binary forms, with or without modification,
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-========== NOTICE c0c56f26d9c051ca ==========
+========== NOTICE 4d7b6b5698039ac3 ==========
 Copyright (c) 2016 Dropbox, Inc.
 All rights reserved.
 
@@ -14104,7 +14104,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-========== NOTICE a71819603f7e8a66 ==========
+========== NOTICE dee04c039f30e98e ==========
 Upstream notice: This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
 Upstream: https://github.com/servo/stylo/blob/572ecba2d1600e7c3d490586692a209faf703baa/selectors/lib.rs
 Canonical license text: https://raw.githubusercontent.com/spdx/license-list-data/main/text/MPL-2.0.txt
@@ -15434,7 +15434,7 @@ PackageDownloadLocation: git+https://github.com/tauri-apps/tao.git
 PackageDownloadLocation: git+ssh://github.com/tauri-apps/tao.git
 Creator: Person: Daniel Thompson-Yvetot
 
-========== NOTICE 0d542e0c8804e39a ==========
+========== NOTICE eb3d7b5485466acb ==========
 
                                  Apache License
                            Version 2.0, January 2004
@@ -15614,7 +15614,7 @@ Creator: Person: Daniel Thompson-Yvetot
    END OF TERMS AND CONDITIONS
 
 
-========== NOTICE 9dd42ea92cff2ede ==========
+========== NOTICE 4f11ab0631fbb692 ==========
 MIT License
 
 Copyright (c) 2017 - Present Tauri Apps Contributors
@@ -15638,7 +15638,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
-========== NOTICE 5e834fe9788c5242 ==========
+========== NOTICE 892614687d91ff79 ==========
 SPDXVersion: SPDX-2.1
 DataLicense: CC0-1.0
 PackageName: tauri
@@ -16993,7 +16993,7 @@ agreement.
 of Data, including for example machine learning models and models'
 insights.
 
-========== NOTICE 0dcf41516e608bbc ==========
+========== NOTICE f34335e76fc91c0a ==========
 MIT License
 
 Copyright (c) 2021 Bill Avery
@@ -17624,7 +17624,7 @@ Apache License
    See the License for the specific language governing permissions and
    limitations under the License.
 
-========== NOTICE 1781d2806a07d91c ==========
+========== NOTICE f52b2dd3e8543035 ==========
 Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font.git)
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
@@ -17719,7 +17719,7 @@ DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 
-========== NOTICE 58172e0c0fac2cda ==========
+========== NOTICE 4b8929f05a122b7a ==========
 Copyright 2018 The Manrope Project Authors (https://github.com/googlefonts/manrope)
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
