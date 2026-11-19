@@ -31,7 +31,8 @@
     "resources": {
       "../LICENSE": "LICENSE.txt",
       "../NOTICE": "NOTICE.txt",
-      "../THIRD_PARTY_NOTICES.txt": "THIRD_PARTY_NOTICES.txt"
+      "../THIRD_PARTY_NOTICES.txt": "THIRD_PARTY_NOTICES.txt",
+      "icons/icon.ico": "synapse-frost.ico"
     },
     "active": true,
     "targets": ["nsis"],
@@ -39,7 +40,8 @@
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico",
-        "uninstallerIcon": "icons/icon.ico"
+        "uninstallerIcon": "icons/icon.ico",
+        "installerHooks": "windows/shortcuts.nsh"
       }
     },
     "shortDescription": "Your notes, connected.",
