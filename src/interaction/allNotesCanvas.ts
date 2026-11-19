@@ -1,4 +1,5 @@
 import type { AllNotesData } from "./allNotesData";
+import { graphInk, incident, linkOpacity } from "./graphPalette";
 import type { SettledNetwork } from "./allNotesLayout";
 import {
   LayoutMotion,
@@ -19,7 +20,6 @@ const clamp = (value: number, min: number, max: number) =>
 const font = "500 11px Geist, sans-serif",
   bold = "600 12px Geist, sans-serif";
 const tau = Math.PI * 2;
-const canvasColor = "#090d13";
 function socket(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -37,7 +37,6 @@ function socket(
   ctx.lineTo(x - r, y + r - c);
   ctx.lineTo(x - r, y - r + c);
   ctx.closePath();
-  ctx.stroke();
 }
 export class AllNotesCanvas {
   readonly motion = new LayoutMotion(
@@ -54,6 +53,7 @@ export class AllNotesCanvas {
   private width = 1;
   private height = 1;
   private dpr = 1;
+  private bleed = 0;
   private baseZoom = 1;
   private revision = -1;
   private fitting = true;
@@ -78,7 +78,7 @@ export class AllNotesCanvas {
     private drawer: () => HTMLElement | null,
     private open: (id: string) => void,
   ) {
-    this.ctx = canvas.getContext("2d", { alpha: false })!;
+    this.ctx = canvas.getContext("2d")!;
     this.resize = new ResizeObserver(() => this.resizeView());
     this.resize.observe(host);
     this.stopFonts = watchFonts(this.texts, () => this.wake());
@@ -235,14 +235,22 @@ export class AllNotesCanvas {
     return { ...frame, ...cameraCentre(frame, this.viewport()) };
   }
   private resizeView() {
-    const { width, height } = this.host.getBoundingClientRect(),
-      dpr = window.devicePixelRatio || 1;
-    if (width === this.width && height === this.height && dpr === this.dpr)
+    const { width, height, left } = this.host.getBoundingClientRect(),
+      dpr = window.devicePixelRatio || 1,
+      bleed = Math.max(0, left - this.canvas.getBoundingClientRect().left);
+    if (
+      width === this.width &&
+      height === this.height &&
+      dpr === this.dpr &&
+      bleed === this.bleed
+    )
       return;
+    // Paint under the sidebar while keeping the camera and inputs in host coordinates.
+    this.bleed = bleed;
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
     this.dpr = dpr;
-    this.canvas.width = Math.round(this.width * dpr);
+    this.canvas.width = Math.round((this.width + bleed) * dpr);
     this.canvas.height = Math.round(this.height * dpr);
     this.baseZoom = this.fitFrame(0).zoom;
     if (this.layout && this.fitting)
@@ -253,7 +261,7 @@ export class AllNotesCanvas {
     this.wake();
   }
   private local(e: MouseEvent): Point {
-    const b = this.canvas.getBoundingClientRect();
+    const b = this.host.getBoundingClientRect();
     return { x: e.clientX - b.left, y: e.clientY - b.top };
   }
   private down = (e: PointerEvent) => {
@@ -358,6 +366,7 @@ export class AllNotesCanvas {
     if (
       !this.layout ||
       !this.data ||
+      p.x < 0 ||
       p.x > this.width - this.motion.frame.drawer
     )
       return -1;
@@ -392,10 +401,9 @@ export class AllNotesCanvas {
     const f = this.motion.advance(time, this.reduced),
       ctx = this.ctx,
       z = f.zoom;
-    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, this.bleed * this.dpr, 0);
     ctx.globalAlpha = 1;
-    ctx.fillStyle = canvasColor;
-    ctx.fillRect(0, 0, this.width, this.height);
+    ctx.clearRect(-this.bleed, 0, this.width + this.bleed, this.height);
     const right = this.width - f.drawer,
       ratio = z / this.baseZoom;
     this.zoomText.textContent = Math.round(ratio * 100) + "%";
@@ -427,14 +435,12 @@ export class AllNotesCanvas {
           ? this.hover
           : ((this.selected ? data.index.get(this.selected) : -1) ?? -1);
       const visible = (id: number) =>
-        s[2 * id] > -10 &&
-        s[2 * id] < right + 10 &&
+        s[2 * id] > -this.bleed - 10 &&
+        s[2 * id] < this.width + 10 &&
         s[2 * id + 1] > -10 &&
         s[2 * id + 1] < this.height + 10;
       ctx.save();
-      ctx.beginPath();
-      ctx.rect(0, 0, Math.max(0, right + 1), this.height);
-      ctx.clip();
+      const opacity = linkOpacity(data.edges.length / 2, ratio, active >= 0);
       this.strokes.forEach((pairs, group) => {
         ctx.beginPath();
         for (let i = 0; i < pairs.length; i += 2) {
@@ -445,8 +451,8 @@ export class AllNotesCanvas {
             u = s[b],
             v = s[b + 1];
           if (
-            (x < 0 && u < 0) ||
-            (x > right && u > right) ||
+            (x < -this.bleed && u < -this.bleed) ||
+            (x > this.width && u > this.width) ||
             (y < 0 && v < 0) ||
             (y > this.height && v > this.height)
           )
@@ -454,8 +460,8 @@ export class AllNotesCanvas {
           ctx.moveTo(x, y);
           ctx.lineTo(u, v);
         }
-        ctx.globalAlpha = (group ? 0.17 : 0.28) * (active >= 0 ? 0.43 : 1);
-        ctx.strokeStyle = group ? "#8294ad" : "#74849a";
+        ctx.globalAlpha = opacity * (group ? 0.76 : 1);
+        ctx.strokeStyle = graphInk.link;
         ctx.lineWidth = 0.63 * clamp(Math.sqrt(ratio), 0.8, 1.45);
         ctx.stroke();
       });
@@ -472,8 +478,8 @@ export class AllNotesCanvas {
             ctx.arc(x, y, r, 0, tau);
           }
         }
-      ctx.fillStyle = "#aab7c6";
-      ctx.globalAlpha = active >= 0 ? 0.33 : 0.76;
+      ctx.fillStyle = graphInk.mark;
+      ctx.globalAlpha = active >= 0 ? 0.52 : 0.88;
       ctx.fill();
       for (const i of data.rank) {
         if (!this.roles[i] || !visible(i)) continue;
@@ -485,7 +491,7 @@ export class AllNotesCanvas {
             (hub
               ? clamp(1 + Math.sqrt(data.neighbors[i].length) * 0.22, 2.1, 4.45)
               : 1.4) * factor;
-        ctx.globalAlpha = active >= 0 ? 0.38 : 0.88;
+        ctx.globalAlpha = active >= 0 ? 0.55 : 0.96;
         ctx.fillStyle = color;
         if (hub) {
           ctx.fillRect(x - r * 0.68, y - r * 0.68, r * 1.36, r * 1.36);
@@ -493,6 +499,7 @@ export class AllNotesCanvas {
             ctx.strokeStyle = color;
             ctx.lineWidth = 0.83;
             socket(ctx, x, y, r + 2.2);
+            ctx.stroke();
           }
         } else {
           ctx.beginPath();
@@ -502,16 +509,15 @@ export class AllNotesCanvas {
       }
       if (active >= 0) {
         const x = s[2 * active],
-          y = s[2 * active + 1],
-          color = data.groups[data.subjects[active]].color;
+          y = s[2 * active + 1];
         ctx.beginPath();
         for (const j of data.neighbors[active]) {
           ctx.moveTo(x, y);
           ctx.lineTo(s[2 * j], s[2 * j + 1]);
         }
-        ctx.strokeStyle = "color-mix(in srgb, " + color + " 78%, #d2e1ee)";
-        ctx.lineWidth = 0.95;
-        ctx.globalAlpha = 0.9;
+        ctx.strokeStyle = graphInk.focus;
+        ctx.lineWidth = 1.18;
+        ctx.globalAlpha = 0.94;
         ctx.stroke();
         ctx.globalAlpha = 1;
         for (const j of data.neighbors[active])
@@ -527,11 +533,14 @@ export class AllNotesCanvas {
             );
             ctx.fill();
           }
-        ctx.fillStyle = "#e4f2ee";
+        ctx.strokeStyle = graphInk.focus;
+        ctx.lineWidth = 1.6;
+        socket(ctx, x, y, 5.4 * factor);
+        ctx.fillStyle = graphInk.frost;
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = graphInk.focus;
         ctx.fillRect(x - 2.6, y - 2.6, 5.2, 5.2);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1.3;
-        socket(ctx, x, y, 6.4 * factor);
       }
       this.drawLabels(active, ratio, right);
       ctx.restore();
@@ -638,9 +647,9 @@ export class AllNotesCanvas {
         ctx.textBaseline = "middle";
         ctx.lineJoin = "round";
         ctx.lineWidth = 3;
-        ctx.strokeStyle = canvasColor;
+        ctx.strokeStyle = graphInk.halo;
         ctx.strokeText(name, lx, ly + h / 2);
-        ctx.fillStyle = emphasis ? "#f2f6fa" : "#c1cddc";
+        ctx.fillStyle = emphasis ? graphInk.focus : graphInk.label;
         ctx.fillText(name, lx, ly + h / 2);
         break;
       }
@@ -650,8 +659,9 @@ export class AllNotesCanvas {
     const data = this.data,
       layout = this.layout;
     if (!data || !layout || this.motion.active) return;
-    const bounds = this.canvas.getBoundingClientRect(),
+    const bounds = this.host.getBoundingClientRect(),
       right = this.width - this.motion.frame.drawer;
+    const focus = this.hover >= 0 ? data.notes[this.hover].id : this.selected;
     const eligible = (i: number) =>
       this.screen[i * 2] > 10 &&
       this.screen[i * 2] < right - 10 &&
@@ -673,7 +683,7 @@ export class AllNotesCanvas {
         .getContext("2d")
         ?.drawImage(
           this.canvas,
-          (x - extent) * this.dpr,
+          (x + this.bleed - extent) * this.dpr,
           (y - extent) * this.dpr,
           2 * extent * this.dpr,
           2 * extent * this.dpr,
@@ -709,13 +719,14 @@ export class AllNotesCanvas {
           )
         )
           continue;
+        const active = incident(focus, a.id, d.id);
         edges.push({
           id: a.id + "|" + d.id,
           source: a.id,
           target: d.id,
           path: { a, b: a, c: d, d },
-          color: a.color,
-          width: 0.7,
+          color: active ? graphInk.focus : graphInk.link,
+          width: active ? 1.18 : 0.63,
         });
         break;
       }

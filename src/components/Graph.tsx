@@ -56,7 +56,6 @@ function ScopedGraph({
     heading = useRef<HTMLElement>(null),
     controls = useRef<HTMLDivElement>(null),
     zoomText = useRef<HTMLSpanElement>(null);
-  const light = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<GraphScene | null>(null);
   if (!sceneRef.current) sceneRef.current = new GraphScene();
   const scene = sceneRef.current;
@@ -102,7 +101,6 @@ function ScopedGraph({
   }, []);
   useLayoutEffect(() => {
     scene.api = graph.current;
-    scene.lightCanvas = light.current;
     scene.container = container.current;
     scene.drawer = drawer;
     scene.heading = heading.current;
@@ -165,8 +163,11 @@ function ScopedGraph({
       onWheel={scene.wake}
       onPointerLeave={() => scene.setHover()}
     >
-      <div className="graph-surface" data-swarm="graph">
-        <canvas className="graph-light" aria-hidden="true" ref={light} />
+      <div
+        className="graph-surface"
+        data-swarm="graph"
+        onPointerLeave={() => scene.setHover()}
+      >
         <ForceGraph2D
           ref={graph}
           width={size.width}

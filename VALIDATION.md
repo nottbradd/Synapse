@@ -1,5 +1,25 @@
 # Synapse validation
 
+## White frosted glass — 19 November 2026
+
+Verified the standard Windows x64 **1.0.0** installer on Windows 11. WebView2 ran the executable extracted from that installer in a disposable profile. The desktop loaded the production JavaScript, CSS, layout worker and bundled backdrop. The original backdrop and its packaged copy have identical SHA-256 digests.
+
+| Desktop check | Result |
+| --- | --- |
+| Supplied Network Lab | 4,096 notes and 10,688 unique links at 100%. Mechanics has 56 direct neighbours. Hover transferred the oxblood highlight, leaving the note selected. Moving away restored all 56 links. Linked-note navigation and Back passed. |
+| Scoped graphs | The six-note Physics view and the All Neurons overview drew near-black links and small subject marks. Hovering the Physics mark or a Physics note drew oxblood on the Canvas. Moving away cleared that highlight. |
+| Frost | Computed blur was 23 px on the sidebar, 29 px on the drawer and 17 px on the graph controls. Paired captures confirmed the underlying network affected pixels through both panels. Emulating reduced transparency switched all three to solid warm white. |
+| Narrow window | Resized the native client to 900 × 640 with Mechanics open. Its header and controls fit beside the reading drawer. |
+| Reading and editing | Verified Edit, Split and Read. CodeMirror applied its warm-white surface and ink text. Revealing a Physics review answer displayed the rating choices. Preferences opened and closed. |
+
+The foreground colour of ordinary links is `#29252A`. The focus outline and direct links use `#713138`. The regression for a triangle of notes checks that an edge joining two neighbours keeps its ordinary colour. Canvas labels have a warm-white halo. Calculated against a black underlay, the halo gives ordinary label ink a 7.2:1 contrast ratio and oxblood label ink 6.8:1.
+
+TypeScript, ESLint, 84 frontend unit tests, the All Notes browser integration checks, all 58 startup and return browser scenarios, and the production Tauri build passed. Rust passed 48 tests with one existing ignored test. Clippy passed with warnings denied.
+
+The unsigned installer is **7,451,833 bytes**. Its SHA-256 is `060a6996c7078154912d8899ae1f8bef12ee90ca318f61d7aa1b441b72c8077e`.
+
+[Full map](docs/images/frosted-glass/all-notes.png) · [Mechanics](docs/images/frosted-glass/mechanics.png) · [Physics](docs/images/frosted-glass/physics.png) · [Narrow window](docs/images/frosted-glass/narrow.png) · [Review](docs/images/frosted-glass/review.png)
+
 ## Synapse v1 — 19 November 2026
 
 The local review build promotes the All Notes application from `4edc7a312476d78b098f8fc6ffd9251328d57b42` to **1.0.0**. The release title is **Synapse v1** and the intended Git tag is `v1.0.0`. The application changes consist of version fields in the npm package and lockfile, Rust crate and lockfile, and Tauri configuration.

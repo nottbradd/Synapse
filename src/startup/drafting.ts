@@ -8,8 +8,10 @@ import {
 import { junction } from "../interaction/connections";
 import type { NodeOutline, PresentationEdge } from "./presentation";
 
-const blue = "#38a8ff",
-  magenta = "#ff4d8d";
+import { graphInk } from "../interaction/graphPalette";
+
+const guide = graphInk.focus,
+  measure = graphInk.mark;
 function line(ctx: CanvasRenderingContext2D, a: Point, b: Point) {
   ctx.beginPath();
   ctx.moveTo(a.x, a.y);
@@ -17,8 +19,8 @@ function line(ctx: CanvasRenderingContext2D, a: Point, b: Point) {
   ctx.stroke();
 }
 function handle(ctx: CanvasRenderingContext2D, p: Point, size: number) {
-  ctx.fillStyle = "#fff";
-  ctx.strokeStyle = blue;
+  ctx.fillStyle = graphInk.frost;
+  ctx.strokeStyle = guide;
   ctx.lineWidth = 1;
   ctx.fillRect(p.x - size / 2, p.y - size / 2, size, size);
   ctx.strokeRect(p.x - size / 2, p.y - size / 2, size, size);
@@ -30,7 +32,7 @@ function badge(
   y: number,
   color: string,
 ) {
-  ctx.font = "600 10.5px 'Segoe UI', sans-serif";
+  ctx.font = "600 10.5px Geist, sans-serif";
   ctx.textBaseline = "middle";
   const w = ctx.measureText(text).width + 9;
   x = Math.max(2, Math.min(innerWidth - w - 2, x));
@@ -39,7 +41,7 @@ function badge(
   ctx.beginPath();
   ctx.roundRect(x, y, w, 15, 3);
   ctx.fill();
-  ctx.fillStyle = "#0b0f14";
+  ctx.fillStyle = graphInk.frost;
   ctx.fillText(text, x + 4.5, y + 7.5);
 }
 export function selection(
@@ -47,7 +49,7 @@ export function selection(
   r: Rect,
   dimensions: boolean,
 ) {
-  ctx.strokeStyle = blue;
+  ctx.strokeStyle = guide;
   ctx.lineWidth = 1;
   ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.width, r.height);
   if (!dimensions) return;
@@ -58,7 +60,7 @@ export function selection(
     `${Math.round(r.width)} × ${Math.round(r.height)}`,
     r.x + r.width / 2 - 19,
     r.y + r.height + 6,
-    blue,
+    guide,
   );
 }
 export function spacing(
@@ -66,7 +68,7 @@ export function spacing(
   source: Point,
   head: Point,
 ) {
-  ctx.strokeStyle = magenta;
+  ctx.strokeStyle = measure;
   ctx.lineWidth = 1;
   line(ctx, source, head);
   const delta = Math.round(
@@ -77,7 +79,7 @@ export function spacing(
     String(delta),
     (source.x + head.x) / 2 + 6,
     (source.y + head.y) / 2 - 8,
-    magenta,
+    measure,
   );
 }
 export function alignment(
@@ -85,7 +87,7 @@ export function alignment(
   x: number,
   height: number,
 ) {
-  ctx.strokeStyle = magenta;
+  ctx.strokeStyle = measure;
   ctx.lineWidth = 0.8;
   line(ctx, { x, y: 0 }, { x, y: height });
 }
@@ -163,7 +165,7 @@ export function completionPulse(
   ctx.lineWidth = 1.4;
   for (const n of nodes) {
     const r = n.radius + reach;
-    ctx.strokeStyle = n.color;
+    ctx.strokeStyle = graphInk.focus;
     if (n.shape === "diamond") {
       ctx.beginPath();
       ctx.moveTo(n.x, n.y - r);

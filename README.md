@@ -1,8 +1,8 @@
 # Synapse
 
-A Windows workspace for Markdown notes, linked knowledge, flashcards, quizzes and reminders. Explore your notes in a matte 2D graph, revise locally, and optionally create editable study drafts with AI.
+A Windows workspace for Markdown notes, linked knowledge, flashcards, quizzes and reminders. Explore your notes in a frosted-glass 2D graph, revise locally, and optionally create editable study drafts with AI.
 
-![Synapse exploring a synthetic Momentum network](docs/images/exploration.png)
+![Mechanics and its direct links in the Synapse Network Lab](docs/images/frosted-glass/mechanics.png)
 
 ## Install
 

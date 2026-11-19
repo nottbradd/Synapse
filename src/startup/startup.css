@@ -123,12 +123,12 @@
   left: 10px;
   top: 9px;
   white-space: nowrap;
-  color: #0b0f14;
+  color: var(--frost);
   background: var(--agent-color);
   border-radius: 3px;
   padding: 0 4.5px;
   font:
-    600 10.5px/15px "Segoe UI",
+    600 10.5px/15px Geist,
     system-ui,
     sans-serif;
 }

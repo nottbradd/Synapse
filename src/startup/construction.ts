@@ -1,3 +1,4 @@
+import { graphInk } from "../interaction/graphPalette";
 import {
   clamp,
   curve,
@@ -27,7 +28,7 @@ import { layer } from "./layer";
 
 // The reference mark uses a 512-unit construction grid and open-centred terminals.
 // Mask just the connecting strokes so an agent can pass behind the actual ink.
-const markSvg = `<svg viewBox="0 0 512 512" focusable="false" fill="none" stroke="#e4e4e7" stroke-width="24" stroke-linecap="round">
+const markSvg = `<svg viewBox="0 0 512 512" focusable="false" fill="none" stroke="${graphInk.text}" stroke-width="24" stroke-linecap="round">
   <defs><mask id="swarm-terminal-holes" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="white" stroke="none"/><g fill="black" stroke="none"><circle cx="166" cy="139" r="27"/><circle cx="166" cy="373" r="27"/><circle cx="346" cy="164" r="27"/></g></mask></defs>
   <path mask="url(#swarm-terminal-holes)" d="M166 147v218m0-109c0 56 180 56 180-22v-43"/>
   <circle cx="166" cy="139" r="27"/><circle cx="166" cy="373" r="27"/><circle cx="346" cy="164" r="27"/>
@@ -130,7 +131,9 @@ function drawCopy(
   ctx.save();
   ctx.globalAlpha = 0.6;
   ctx.fillStyle =
-    master.background === "rgba(0, 0, 0, 0)" ? "#202b36" : master.background;
+    master.background === "rgba(0, 0, 0, 0)"
+      ? graphInk.frost
+      : master.background;
   ctx.beginPath();
   ctx.roundRect(x, y, r.width, r.height, master.radius);
   ctx.fill();
@@ -215,9 +218,8 @@ export function createOverlay(
     if (at < plan.graphEnd) {
       for (const t of edges) {
         if (at < t.work) continue;
-        const e = graph.edges[t.edge!],
-          source = graph.nodes.find((n) => n.id === e.source)!;
-        wire(ctx, e, source.color, position(t, at), workProgress(t, at));
+        const e = graph.edges[t.edge!];
+        wire(ctx, e, graphInk.focus, position(t, at), workProgress(t, at));
       }
       for (const t of nodes) {
         if (at < t.work) continue;
